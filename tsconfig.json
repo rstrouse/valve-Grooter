@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    // "paths": { "*": [ "@types/*" ] },
+    "module": "commonjs",
+    "target": "ESNext",
+    "lib": [ "es2017" ],
+    "sourceMap": true,
+    "noImplicitAny": false,
+    "removeComments": true,
+    "preserveConstEnums": true,
+    "outDir": "dist",
+    "moduleResolution": "node",
+    "allowJs": false,
+    "allowSyntheticDefaultImports": false,
+    "esModuleInterop": false,
+    "jsx": "react"
+
+  },
+  "exclude": [
+    "node_modules"
+  ],
+  "include": [
+    "web/**/*",
+    "logger/**/*",
+    "controller/**/*",
+    "config/**/*",
+    "**/*.ts"
+  ]
+}
