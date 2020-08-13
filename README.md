@@ -23,10 +23,15 @@
    Each number below corresponds to a byte in the header starting from the left where the first byte is 0.
    
    ***0.*** 165 = This byte is always 165 on our protocol.  Any message sent on the RS485 bus including but not limited to our valve will be 165.  One could argue that it is part of the preamble but we look at this byte as the start of the header.  Later on you will understand why this is considered a header byte.
+   
    ***1.*** 1 = The channel that the message is being communicated on.  This value has very little consistency on messages picked up on the bus.  In the wild we have witnessed, 0, 32, 33, and 65 depending on the equipment that is sending it.  At this point we are continuing to communicate using 1 as the channel.
+   
    ***2.*** 16 = The destination address of the message.  While the rules for this are not really cut and dried, a destination of 16 typically means Broadcast or "To whom it may concern." 
+   
    ***3.*** 12 = The source address of the message.  The typical pattern for source addresses is one where the value tells us more specificity as to which physical piece of equipment sent the message.  In this instance we believe that 12 is actually a hail message.  We have witnessed this value only once before with iChlor to announce its presence.  Think of it as the "I am" portion of the "I am Groot!" declaration.
+   
    ***4.*** 82 = The action or command of the message.  Put another way this is supposed to identify the reason for the message.  When sending messages back to the valve we have to specify a valid value here so the valve knows what to do with it.  When we get the right combination of bytes, this will be specific for things like "What mode are you in?" or "Set the setponts to XXX,XXX?"
+   
    ***5.*** 8 = Length of the upcoming payload.  This byte simply tells us how many bytes we need to read for the next section of the message.  In this case there are 8 btyes.
    
  #### Payload
