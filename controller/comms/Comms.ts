@@ -5,7 +5,7 @@ import { config } from '../../config/Config';
 import { logger } from '../../logger/Logger';
 import { eq } from '../Equipment';
 import * as net from 'net';
-import { setTimeout, setInterval } from 'timers';
+import { setTimeout } from 'timers';
 import { Message, Outbound, Inbound, Response } from './messages/Messages';
 import { OutboundMessageError } from '../Errors';
 export class Connection {
@@ -45,6 +45,12 @@ export class Connection {
             });
         }
         else {
+            if (typeof conn._port !== 'undefined' && conn._port) {
+                if (conn._port.isOpen) {
+                    conn.resetConnTimer();
+                    return;
+                }
+            }
             var sp: SerialPort = null;
             if (conn._cfg.mockPort) {
                 this.mockPort = true;
@@ -73,16 +79,21 @@ export class Connection {
                     logger.error('Serial port %s recovering from lost connection', conn._cfg.rs485Port);
                 else
                     logger.info(`Serial port: ${this.path} opened`);
+                sp.on('data', function (data) {
+                    if (!this.mockPort) {
+                        if (!conn.isPaused) conn.emitter.emit('packetread', data);
+                    }
+                });
                 conn.isOpen = true;
             });
+            sp.on('close', function (err) {
+                conn.isOpen = false;
+                logger.info(`Serial port has been closed: ${JSON.stringify(err)}.`)
+            });
+            conn.resetConnTimer();
+
             // RKS: 06-16-20 -- Unsure why we are using a stream event here.  The data
             // is being sent via the data event and I can find no reference to the readable event.
-            sp.on('data', function (data) {
-                if (!this.mockPort) {
-                    if (!conn.isPaused) conn.emitter.emit('packetread', data);
-                }
-                conn.resetConnTimer();
-            });
             //sp.on('readable', function () {
             //    if (!this.mockPort) {
             //        // If we are paused just read the port and do nothing with it.
@@ -180,7 +191,7 @@ export class SendRecieveBuffer {
     public pushOut(msg) { conn.buffer._outBuffer.push(msg); setTimeout(() => { this.processPackets(); }, 0); }
     public clear() { conn.buffer._inBuffer.length = 0; conn.buffer._outBuffer.length = 0; }
     public close() { clearTimeout(conn.buffer.procTimer); conn.buffer.clear(); this._msg = undefined; }
-
+    public get outBuffer(): Outbound[] { return conn.buffer._outBuffer; }
     /********************************************************************
      * RKS: 06-06-20
      * This used to process every 175ms.  While the processing was light

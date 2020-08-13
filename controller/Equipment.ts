@@ -439,6 +439,8 @@ export class IntelliValve extends EqItem {
     }
     public sendNextMessage() {
         let self = this;
+        if (conn.buffer.outBuffer.length > 0) setTimeout(() => { this.sendNextMessage(); }, 20);
+
         // Information on Groot:
         // 1. The groot message is sent and consistent whenever the valve is in any mode.
         // 2. The groot message is sent and consistent regardless of whether the valve has been reversed or not.
@@ -457,7 +459,7 @@ export class IntelliValve extends EqItem {
         // 7. Send lower 2 bytes back with every destination, 16 source, and every action.
         // 8. Send lower 1 bytes back with every destination, 16 source, and every action.
         // 9. Send empty payload with every destination, 16 source, and every action.
-        // 10. Send entire payload back on every destination, 16 source and every action where the first payload byte is changed to 0-34.
+        // 10. Send entire payload back on every destination, 16 source and every action where the first payload byte is changed to 0-45.
 
         let out = this.lastMessage;
         // Reset the message to try again.
