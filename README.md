@@ -1,10 +1,57 @@
 ﻿# Valve Grooter
  This is an application to send messages to IntelliValve in the hope that it will respond with some message other than "I am Groot."  Whenever plugged into an RS485 port IntelliValve will emit a message with the following format.  Each of the segments below represent the message emitted by the valve.  The first array is a preamble that is always 255, 0, 255 decimal.  This is followed by a header that is always constant [<controller byte><channel><destination><source><action><length>].  The next array is the payload where the X's represent a unique identifier.  All valves witnessed in the wild contain a unique set of bytes for the valve.  The final two bytes are simply a checksum that is calculated for the message.
- ```[255,0,255][165,1,16,12,82,8][0,128,XXX,XXX,XXX,XXX,XXX,XXX][NN,NN]```
+ ```[][255,0,255][165,1,16,12,82,8][0,128,XXX,XXX,XXX,XXX,XXX,XXX][NN,NN]```
  
  ## Things we know about Groot
- At this point this is the only means of communication that the valve has.  Despite the traffic on the RS485 bus all we can get the valve to respond with is "I am Groot."  This message is consistent for regardless of the mode that the valve is in.  The XXX bytes on the payload described above appear to be some sort of unique identifier for the valve.  Valves manufactured around the same time appear to have some level of sequential numbering in the lower order bytes.
+ At this point this is the only means of communication that the valve has.  Despite the traffic on the RS485 bus all we can get the valve to respond with is "I am Groot."  This message is consistent regardless of the mode that the valve is in.  The XXX bytes on the payload described above appear to be some sort of unique identifier for the valve.  Valves manufactured around the same time appear to have some level of sequential numbering in the lower order bytes.
  
+ ### Counting the screws in Groot
+ Like all pressed board furniture the first page of the manual is an inventory of the items in the box.  So here we go with the unboxing and taking iventory of what is in the box.  The message consists of a series of bytes (8-bits) sent in sequence over the green and yellow wires.  We won't go into the TV magic used to translate bits into bytes but just know that it is a series of pulses where 8 of them (0 or 1) make up a byte. 
+ 
+ The protocol is the expected format of these bytes and it is recognizable.  This is the same protocol used for most RS485 pool equipment out there and it is just as quippy as any other Avenger.  The way the Grooter shows this information is in 4 arrays (an array is simply a list of bytes) separated by brackets.  A brief description of each of these sections is described below.
+ ```[][255,0,255][165,1,16,12,82,8][0,128,XXX,XXX,XXX,XXX,XXX,XXX][NN,NN]```
+ 
+ #### Padding
+ The first set of brackets is the padding.  These bytes really have little meaning they are simply any bytes that are not part of a current message.  The most consistent reason that there will be bytes there is that our valve burped.  Who knows maybe the valve can burp the Preamble to the Constitution.  Had a friend in grade school that could do that.  Think of this as the packing material that gets all over the place when you open the box.
+ 
+ #### Preamble
+  A preamble is simply a notificaton on the RS485 bus that important information is coming.  Unlike the burping above this tells us to be on the lookout for the upcoming bytes. This value will always be ```[255,0,255]```.  In the furniture manual this section is typically bounded by a thick box and a caution symbol.  "Wear goggles and don't stick the screwdriver in your eye!"
+  
+ #### Header
+   The header for the message is consistent for all Groot messages on any valve.  It always comes in the form ```[165,1,16,12,82,8]```.  We will look at each of these bytes to try to make sense of them.  So each number below corresponds to a byte in the header starting from the left where the first byte is 0.
+   0. 165 = This byte is always 165 on our protocol.  Any message sent on the RS485 bus including but not limited to our valve will be 165.  One could argue that it is part of the preamble but we look at this byte as the start of the header.
+   1. 1 = The channel that the message is being communicated on.  This value has very little consistency on messages picked up on the bus.  In the wild we have witnessed, 0, 32, 33, and 65 depending on the equipment that is sending it.  At this point we are continuing to communicate using 1 as the channel.
+   2. 16 = The destination address of the message.  While the rules for this are not really cut and dried, a destination of 16 typically means Broadcast or "To whom it may concern." 
+   3. 12 = The source address of the message.  The typical pattern for source addresses is one where the value tells us more specificity as to which physical piece of equipment sent the message.  In this instance we believe that 12 is actually a hail message.  We have witnessed this value only once before with iChlor to announce its presence.  Think of it as the "I am" portion of the "I am Groot!" declaration.
+   4. 82 = The action or command of the message.  Put another way this is supposed to identify the reason for the message.  When sending messages back to the valve we have to specify a valid value here so the valve knows what to do with it.  When we get the right combination of bytes, this will be specific for things like "What mode are you in?" or "Set the setponts to XXX,XXX?"
+   5. 8 = Length of the upcoming payload.  This byte simply tells us how many bytes we need to read for the next section of the message.  In this case there are 8 btyes.
+   
+ #### Payload
+ The payload is the data portion of the message.  Up until this section every valve in the wild is expected to serve the same series of bytes.  If you bought a nightstand with that cheap bookshelf from the same company, the manual will be the same up until here.  Now it starts to get interesting.
+
+```[0,128,XXX,XXX,XXX,XXX,XXX,XXX]``` The places where you see the X's are simply those places where different valves have emitted different values.  These always start with ```0,128```.  This could mean several things.  Perhaps it is simply letting us know that the range of the valve setpoints is 0 to 128 or it could also be an identifier as to the manufacturer of the valve.  Just know that every valve we have seen so far is and IntelliValve created by Pentair and these bytes have been consistent.
+    
+Now that we know the first two bytes 0 and 1.  Byte 2 through 7 starts giving us more specific information about the valve.  What we have noticed is that in every instance of a valve in the wild these 6 byte are unique for every valve.  If you are from Blechley Park perhaps you may see some pattern in this that lines up with the markings on the valve.  If you see a good pattern here let us know.  We do know that byte 2 and 3 roughly match the timeframe from when the valve was manufactured.  We have seen ```216,128``` for older valves and ```128,31``` for valves made after December 2018.
+
+Byte 4 has some consistency with the bytes 2 & 3 as they relate to the time of manufacture.  We have only witnessed a value of 57 for early valves and 18 for newer ones.
+
+Byte 5 seems to be sequential we have seen valves that are manufactured at the same time with incrementing numbers.  These have been witnessed with all bytes up until this point being identical with the remaining bytes (7-9) changed.  For instance, these valves were all manufactured on 08/19/2019.
+1. ```[255, 0, 255][165, 1, 16, 12, 82, 8][0, 128, 128, 31, 18, 75, 154, 185][3, 235]```
+2. ```[255, 0, 255][165, 1, 16, 12, 82, 8][0, 128, 128, 31, 18, 76, 39, 119][3, 55]```
+3. ```[255, 0, 255][165, 1, 16, 12, 82, 8][0, 128, 128,  31, 18, 79, 209, 34][3, 143]```
+
+So why am I telling you all this.  Well I hope that there are folks out there with puzzle solving skills that can understand what "I am Groot!" means.  Perhaps through observation and a little dic work you might be able to pick up what the valve is laying down.
+
+#### Checksum
+ The final two bytes is simply a checksum.  This gives us some assurance that the bytes we have read for the message have all been included.  If the communication chip misses a pulse then this checksum will not be correct.  To calculate a checksum on this protocol you simply add up all the values starting with the first byte of the header to the last byte of the payload to come up with a sum.  Now you see the wisdom of 165 being part of the header since it is calculated into the checksum. 
+ 
+ So for ```[255, 0, 255][165, 1, 16, 12, 82, 8][0, 128, 128, 31, 18, 75, 154, 185][3, 235]``` we have ```165 + 1 + 16 + 12 + 82 + 8 + 0 + 128 + 128 + 31 + 18 + 75 + 154 + 185 = 1003```.  
+ 
+ Unfortunately we can only store values up to 255 in a single byte so there are two bytes to represent the checksum using a technique called big-endian encoding.  The way this works is the first byte is ```1003 / 256``` with the decimal places truncated off.  So we get ```3``` the second byte is ```1003 - (3 x 256) = 235``` if the last two bytes are ```[3,235]``` we have some level of assurance that the message was delivered completely.  As you may have already figured out there are instances where bytes can collide and valid checksums can be calculated out of random bytes so this is not perfect.  
+ 
+ The communications here are half-duplex which is just a fancy way of saying that the same two wires are used for transmit and receive messages over RS485.  This means that there will be false positives but reporting these means that we can test and retest.    
+   
+   
  ## What this software does
  This software sends messages out on the RS485 bus in the hopes that the valve will call us dad.  This means that we get some other message than "I am Groot!"
 
