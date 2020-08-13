@@ -63,32 +63,8 @@
         "includeDest": [],
         "excludeActions": [],
         "excludeSource": [],
-        "excludeDest": []
-      },
-      "pump": {
-        "enabled": true,
-        "includeActions": [],
-        "includeSource": [],
-        "includeDest": [],
-        "excludeActions": [],
-        "excludeSource": [],
-        "excludeDest": []
-      },
-      "chlorinator": {
-        "enabled": true,
-        "includeSource": [],
-        "includeDest": [],
-        "excludeSource": [],
-        "excludeDest": []
-      },
-      "intellichem": {
-        "enabled": true,
-        "includeActions": [],
-        "exclueActions": [],
-        "includeSource": [],
-        "includeDest": [],
-        "excludeSource": [],
-        "excludeDest": []
+        "excludeDest": [],
+        "outbound": false
       },
       "intellivalve": {
         "enabled": true,

@@ -282,6 +282,10 @@ export class IntelliValveCollection extends EqItemCollection<IntelliValve> {
 
 export class IntelliValve extends EqItem {
     public dataName = 'IntelliValve';
+    constructor(data, name?: string) {
+        super(data, name);
+        if (typeof this.data.responses === 'undefined') this.data.responses = [];
+    }
     public _sendTimer: NodeJS.Timeout = null;
     public id: number;
     public get key(): string { return this.data.key || ''; }
