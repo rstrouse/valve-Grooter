@@ -14,11 +14,14 @@
  
  Once you have cloned the repository run ```nmp install``` then run ```npm start```.  On first run the application will create a config.json file.  If your RS485 adapter is not recognized or you want to change the web port for the built-in status page you can edit these settings in the config.json located in the root directory of the application.
 
- Most of the settings for the valve-Grooter are the same as those set for [nodejs-PoolController](https://github.com/tagyoureit/nodejs-poolController#controller-section---changes-to-the-communications-for-the-app).
+ Most of the settings for the valve-Grooter are the same as those set for [nodejs-PoolController](https://github.com/tagyoureit/nodejs-poolController#controller-section---changes-to-the-communications-for-the-app).  In fact they use the same message processing and configuration code.
  
  ## Message status
  A simple webpage has been created that will show you the status of the messages that are emitted to the valve.  These begin only after the valve has sent its first groot message to the controller.  To launch the page open a browser after starting the valve-Grooter server and type http://<valve grooter server ip>:8986 or if you changed the port the port that you assigned to it.
   
+ As the messages are sent to IntelliValve the page will refresh with the latest data that has been sent to the valve.  If there are any responses from it please upload your ```equipmentConfig.json``` file in the issues section.  Don't get too excited the response indicated in the screenshot is "I am Groot!"
+ 
+  ![image](https://user-images.githubusercontent.com/47839015/90079929-29b75880-dcbe-11ea-8ccd-6581ebfcbcdd.png)
   
  
  
