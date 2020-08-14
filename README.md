@@ -66,7 +66,7 @@ So why am I telling you all this.  Well I hope that there are folks out there wi
  ## Installation
  For the message processor to be effective, the only thing on the RS485 adapter should be a single IntelliValve.  If there is any other traffic, then the chatter from those devices may be interpreted for intelligence from the valve.  You must hook up at least one side of the valve to a 24vac with at least 1amp of power.  The green and yellow wires from the IntelliValve should be hooked to your RS485 adapter.
   
- Once you have cloned the repository run ```nmp install``` then run ```npm start```.  On first run the application will create a config.json file.  If your RS485 adapter is not recognized or you want to change the web port for the built-in status page you can edit these settings in the config.json located in the root directory of the application.
+ Once you have cloned the repository run ```npm install``` then run ```npm start```.  On first run the application will create a config.json file.  If your RS485 adapter is not recognized or you want to change the web port for the built-in status page you can edit these settings in the config.json located in the root directory of the application.
 
  Most of the settings for the valve-Grooter are the same as those set for [nodejs-PoolController](https://github.com/tagyoureit/nodejs-poolController#controller-section---changes-to-the-communications-for-the-app).  In fact they use the same message processing and configuration code.
  
