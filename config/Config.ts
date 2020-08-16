@@ -91,6 +91,8 @@ class Config {
         } else c = c[section];
         return extend(true, {}, opts || {}, c || {});
     }
+    public get grooterId(): string { return typeof this._cfg !== 'undefined' ? this._cfg.grooterId = (this._cfg.grooterId || '') : undefined; }
+    public set grooterId(val: string) { this._cfg.grooterId = val; }
     public init() {
         let baseDir = process.cwd();
         this.ensurePath(baseDir + '/logs/');

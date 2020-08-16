@@ -25,6 +25,7 @@ export class IVMessage {
                 else if (valve.statusMessage.payload.join(',') !== msg.payload.join(',')) {
                     logger.info('got 241 Change');
                     valve.addStatusChange(msg);
+                    logger.packet(msg);
                 }
                 valve.statusMessage = msg;
             }
