@@ -403,7 +403,7 @@ export class SendRecieveBuffer {
                     else {
                         conn.buffer.counter.failed++;
                         console.log('Failed:' + JSON.stringify(conn.buffer.counter));
-                        eq.valves.resetToVerified();
+                        //eq.valves.resetToVerified();
                         //console.log(JSON.stringify(conn.buffer._inBytes));
                     }
                     logger.packet(msg);
