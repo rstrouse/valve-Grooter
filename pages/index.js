@@ -80,15 +80,28 @@
             $('<label></label>').appendTo(line).text('Valve Key')
             $('<span></span>').appendTo(line).attr('data-bind', 'key');
             line = $('<div></div>').appendTo(pnl);
+            $('<label></label>').appendTo(line).text('Address');
+            $('<span></span>').appendTo(line).attr('data-bind', 'address').attr('data-fmttype', 'int').attr('data-fmtmask', '#');
+
+
+            line = $('<div></div>').appendTo(pnl);
             $('<label></label>').appendTo(line).text('Method')
             $('<span></span>').appendTo(line).attr('data-bind', 'method');
 
             line = $('<div></div>').appendTo(pnl);
-            $('<label></label>').appendTo(line).text('Groots')
+            $('<label></label>').appendTo(line).text('Groots');
             $('<span></span>').appendTo(line).attr('data-bind', 'totalGroots').attr('data-fmttype', 'int').attr('data-fmtmask', '#,##0');
             line = $('<div></div>').appendTo(pnl);
-            $('<label></label>').appendTo(line).text('Sent')
-            $('<span></span>').appendTo(line).attr('data-bind', 'totalMessages').attr('data-fmttype', 'int').attr('data-fmtmask', '#,##0');
+
+            line = $('<div></div>').appendTo(pnl);
+            $('<label></label>').appendTo(line).text('Statuses');
+            $('<span></span>').appendTo(line).attr('data-bind', 'totalStatus').attr('data-fmttype', 'int').attr('data-fmtmask', '#,##0');
+            line = $('<div></div>').appendTo(pnl);
+
+
+            $('<label></label>').appendTo(line).text('Commands');
+            //$('<span></span>').appendTo(line).attr('data-bind', 'totalMessages').attr('data-fmttype', 'int').attr('data-fmtmask', '#,##0');
+            $('<span></span>').appendTo(line).attr('data-bind', 'totalCommands').attr('data-fmttype', 'int').attr('data-fmtmask', '#,##0');
 
             line = $('<div></div>').appendTo(pnl);
             $('<label></label>').appendTo(line).text('Last Groot');
@@ -98,21 +111,41 @@
             $('<span></span>').appendTo(line).attr('data-bind', 'grootMessage');
 
             line = $('<div></div>').appendTo(pnl);
-            $('<label></label>').appendTo(line).text('Last Message');
-            $('<span></span>').appendTo(line).attr('data-bind', 'lastMessage');
+            $('<label></label>').appendTo(line).text('Last Status');
+            $('<span></span>').appendTo(line).attr('data-bind', 'tsLastStatus').attr('data-fmttype', 'datetime').attr('data-fmtmask', 'MM/dd h:mmtt ss.nn');
+            line = $('<div></div>').appendTo(pnl);
+            $('<label></label>').appendTo(line).text('Status Message');
+            $('<span></span>').appendTo(line).attr('data-bind', 'statusMessage');
+
+
+
+            //line = $('<div></div>').appendTo(pnl);
+            //$('<label></label>').appendTo(line).text('Last Message');
+            //$('<span></span>').appendTo(line).attr('data-bind', 'lastMessage');
 
             line = $('<div></div>').appendTo(pnl);
-            $('<label></label>').appendTo(line).text('Last Verified');
-            $('<span></span>').appendTo(line).attr('data-bind', 'lastVerified');
+            $('<label></label>').appendTo(line).text('Last Command');
+            $('<span></span>').appendTo(line).attr('data-bind', 'commandMessage');
+
+            //line = $('<div></div>').appendTo(pnl);
+            //$('<label></label>').appendTo(line).text('Last Verified');
+            //$('<span></span>').appendTo(line).attr('data-bind', 'lastVerified');
+
             line = $('<div></div>').appendTo(el).addClass('respOuter');
             var grp = $('<fieldset></fieldset>').appendTo(line);
             $('<legend></legend>').appendTo(grp).text('Responses');
             line = $('<div></div>').appendTo(grp).addClass('responses');
+
+            line = $('<div></div>').appendTo(el).addClass('respStatOuter');
+            grp = $('<fieldset></fieldset>').appendTo(line);
+            $('<legend></legend>').appendTo(grp).text('Status');
+            line = $('<div></div>').appendTo(grp).addClass('statuses');
         },
         databind: function (data) {
             var self = this, o = self.options, el = self.element;
             dataBinder.bind(el.find('div.valvePanel'), data);
             var resp = el.find('div.responses');
+            var stat = el.find('div.statuses');
             if (typeof data.responses === 'undefined' || data.responses.length === 0) resp.empty();
             else {
                 for (var i = 0; i < data.responses.length; i++) {
@@ -144,6 +177,38 @@
                     }
                 }
             }
+            if (typeof data.statusChanges === 'undefined' || data.statusChanges.length === 0) stat.empty();
+            else {
+                for (var i = 0; i < data.statusChanges.length; i++) {
+                    var s = stat.find('div.statusChanges[data-index=' + i + ']');
+                    if (s.length === 0) {
+                        // Add in our response object since it doesn't exist.
+                        s = $('<div></div>').appendTo(stat).addClass('status').attr('data-index', i);
+                        var line = $('<div></div>').appendTo(r);
+                        $('<label></label>').appendTo(line).text('ts');
+                        $('<span></span>').appendTo(line).attr('data-bind', 'ts').attr('data-fmttype', 'datetime').attr('data-fmtmask', 'MM/dd h:mmtt ss.nn');
+
+                        line = $('<div></div>').appendTo(r);
+                        $('<label></label>').appendTo(line).text('Prev');
+                        $('<span></span>').appendTo(line).attr('data-bind', 'prev');
+
+                        line = $('<div></div>').appendTo(r);
+                        $('<label></label>').appendTo(line).text('New');
+                        $('<span></span>').appendTo(line).attr('data-bind', 'curr');
+                        dataBinder.bind(r, data.statusChanges[i]);
+                    }
+                    else
+                        dataBinder.bind(r, data.statusChanges[i]);
+                }
+                // Trim off all the ones that are greater than the number of responses.
+                var rs = stat.find('div.status');
+                if (rs.length > data.statusChanges.length) {
+                    for (var k = rs.length; k > data.statusChanges.length; k--) {
+                        $(rs[k]).remove();
+                    }
+                }
+            }
+
         }
     });
 

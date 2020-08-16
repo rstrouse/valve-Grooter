@@ -456,8 +456,16 @@ export class Outbound extends Message {
         this.payload.push(value);
         return this;
     }
-    public appendPayloadBytes(value: number, len: number) {
-        for (let i = 0; i < len; i++) this.payload.push(value);
+    public appendPayloadBytes(value: number | number[], len: number) {
+        if (typeof value === 'number') {
+            for (let i = 0; i < len; i++) this.payload.push(value);
+        }
+        else if (Array.isArray(value)) {
+            for (let i = 0; i < len; i++) {
+                if (i < value.length) this.payload.push(value[i]);
+                else this.payload.push(0);
+            }
+        }
         return this;
     }
     public setPayloadBytes(value: number, len: number) {
