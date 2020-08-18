@@ -64,7 +64,7 @@
         }
     });
     $.widget("pic.valve", {
-        options: { socket: null },
+        options: { socket: null, suspendBind: false },
         _create: function () {
             var self = this, o = self.options, el = self.element;
             el[0].databind = function (data) { self.databind(data); };
@@ -79,14 +79,37 @@
             var line = $('<div></div>').appendTo(pnl);
             $('<label></label>').appendTo(line).text('Valve Key')
             $('<span></span>').appendTo(line).attr('data-bind', 'key');
+            $('<input type="hidden"></input>').appendTo(line).attr('data-bind', 'id').attr('data-fmttype', 'int').attr('data-fmtmask', '#');
             line = $('<div></div>').appendTo(pnl);
             $('<label></label>').appendTo(line).text('Address');
             $('<span></span>').appendTo(line).attr('data-bind', 'address').attr('data-fmttype', 'int').attr('data-fmtmask', '#');
 
 
             line = $('<div></div>').appendTo(pnl);
-            $('<label></label>').appendTo(line).text('Method')
-            $('<span></span>').appendTo(line).attr('data-bind', 'method');
+            $('<div></div>').appendTo(line).pickList({
+                required: true,
+                bindColumn: 0, displayColumn: 0, labelText: 'Method', binding: 'method',
+                columns: [{ binding: 'val', text: 'Method', style: { whiteSpace: 'nowrap' } }, { binding: 'desc', text: 'Description', style: { width: '450px' } }],
+                items: [{ val: 'commandCrunch1', desc: 'Crunch all available payloads for all actions.' },
+                { val: 'action247', desc: 'Send all payloads on 247 with the address as the first byte.' },
+                { val: 'flybackStatus', desc: 'Feed the status result back to the valve while changing payload bytes.' },
+                { val: 'driveOn80', desc: 'Send payloads back on action 80 with the address as the first byte so it does not readdress the valve.' },
+                { val: 'flybackOver80', desc: 'Send an entire payload on action 80 while changing the bytes of the groot.' },
+                { val: 'flyback247Status', desc: 'Jams the last 10 bytes from the status return down the throat of the valve while chaining byte patterns.' }
+                ], inputAttrs: { style: { width: '14rem', paddingLeft: '10px' } }
+            }).on('selchanged', function (evt) {
+                if (o.binding) return;
+                o.suspendBind = true;
+
+                var valve = dataBinder.fromElement(el);
+                valve.method = evt.newItem.val;
+                $.putLocalService('/processing/grootMethod', { id: valve.id, method: evt.newItem.val }, function (data, status, xhr) {
+                    o.suspendBind = false;
+                });
+
+            });
+            //$('<label></label>').appendTo(line).text('Method')
+            //$('<span></span>').appendTo(line).attr('data-bind', 'method');
 
             line = $('<div></div>').appendTo(pnl);
             $('<label></label>').appendTo(line).text('Groots');
@@ -143,6 +166,8 @@
         },
         databind: function (data) {
             var self = this, o = self.options, el = self.element;
+            if (o.suspendBind) return;
+            o.binding = true;
             dataBinder.bind(el.find('div.valvePanel'), data);
             var resp = el.find('div.responses');
             var stat = el.find('div.statuses');
@@ -208,7 +233,8 @@
                     }
                 }
             }
-
+            o.suspendBind = false;
+            o.binding = false;
         }
     });
 

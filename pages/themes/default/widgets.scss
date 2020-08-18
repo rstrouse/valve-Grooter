@@ -1,0 +1,37 @@
+﻿@import '../mixins/gradients.scss';
+@import 'colors.scss';
+
+div.picConfigTabContents {
+    @include linear_gradient(0deg, rgba(240,240,240,1) 0%, rgba(249,249,249,1) 15%, rgba(255,255,255,1) 24%, rgba(255,255,255,1) 82%, rgba(222,222,222,1) 100%);
+}
+
+div.picTab:not(.picTabSelected) {
+    border-color: silver;
+    color: silver;
+}
+
+div.pover-icon:hover {
+    color: orange;
+    text-shadow: 3px 3px 16px #272634;
+}
+
+div.picSaltReqd {
+    padding: .2rem;
+    border-bottom: solid 1px gainsboro;
+    margin-bottom: .4rem;
+}
+
+div.picBody[data-ison=false] div.picBodyTemp {
+    color: silver;
+}
+
+span.picUnits {
+    color: gray;
+}
+
+div.picAccordian-title {
+    border: solid 1px gray;
+    border-top-left-radius: $border_radius;
+    border-top-right-radius: $border_radius;
+}
+

@@ -20,22 +20,27 @@ import { config } from "../config/Config";
          * @thumbnut       [1,1,0,128,59,0,0,0,0]             [1,1,0,128,59,0,0,5,187]
          * @kenneth        [1,2,1,64,128,205,3,3,0,0,0,0]
          *******************************************/
+
+//in [[], [255, 0, 255], [165, 1, 16, 1, 1, 1], [247], [1, 176]]
+//out[[], [255, 0, 255], [165, 1, 1, 16, 247, 8], [1, 128, 128, 31, 18, 79, 213, 65], [4, 77]]
 let grooters = {
-    cmc0619: { crunch: [0], flyback: { pair: 0 } },
-    gw8674: { crunch: [1, 2, 4], flyback: { pair: 1 } },
-    amigaman: { crunch: [50, 128, 0, 0], flyback: { pair: 2 } },
-    mcqwerty: { crunch: [0, 0, 50, 128, 0, 0], flyback: { pair: 3 } },
-    thumbnut: { crunch: [1, 1, 0, 128, 59, 0, 0, 0, 0], flyback: { pair: 4 } },
-    kenneth: { crunch: [1, 2, 1, 64, 128, 205, 3, 3, 0, 0, 0, 0], flyback: { pair: 1 } },
+    cmc0619: { method:'commandCrunch1', crunch: [0], flyback: { commandIndex: 0 } },
+    gw8674: { method: 'commandCrunch1', crunch: [1, 2, 4], flyback: { commandIndex: 2 } },
+    amigaman: { method: 'commandCrunch1', crunch: [50, 128, 0, 0], flyback: { commandIndex: 4 } },
+    mcqwerty: { method: 'commandCrunch1', crunch: [0, 0, 50, 128, 0, 0], flyback: { commandIndex: 6 } },
+    thumbnut: { method: 'commandCrunch1', crunch: [1, 1, 0, 128, 59, 0, 0, 0, 0], flyback: { commandIndex: 8 } },
+    kenneth: { method: 'commandCrunch1', crunch: [1, 2, 1, 64, 128, 205, 3, 3, 0, 0, 0, 0], flyback: { commandIndex: 1 } },
+    kenneth2: { method: 'commandCrunch1', crunch: [1, 2, 1, 64, 128, 205, 3, 3, 0, 0, 0, 0], flyback: { commandIndex: 3 } },
     transform: function (val: string) {
         let grooter = this[val.toLowerCase()] || {
-            crunch: [0], flyback: { pair: 0 }
+            method: 'driveOn80', crunch: [0], flyback: { commandIndex:0 }
+        }
+        if (typeof grooter.drive80 === 'undefined') {
+            grooter.drive80 = new Array(grooter.flyback.commandIndex + 1).fill(0);
         }
         return grooter;
     }
 }
-
-
 interface IEqItemCreator<T> { ctor(data: any, name: string): T; }
 interface IEqItemCollection {
     set(data);
@@ -171,6 +176,14 @@ export class Equipment {
         if (this._timerChanges) clearTimeout(this._timerChanges);
         if (this._timerDirty) clearTimeout(this._timerDirty);
     }
+    public async setGrootMethodAsync(groot: any) {
+        let method = groot.method || 'commandCrunch1';
+        let valve;
+        if (typeof groot.id !== 'undefined') valve = this.valves.getItemById(parseInt(groot.id, 10));
+        else if (typeof groot.key) valve = this.valves.getValveByKey(groot.key);
+        return valve.setGrootMethodAsync(groot);
+    }
+
     public get dirty(): boolean { return this._isDirty; }
     public set dirty(val) {
         this._isDirty = val;
@@ -196,9 +209,9 @@ export class Equipment {
             .catch(function (err) { if (err) logger.error('Error writing pool config %s %s', err, eq.cfgPath); });
     }
     public emit() { webApp.emitToClients('valves', this.data); }
-    public get startPayload(): number[] { return typeof this.data.startPayload !== 'undefined' ? JSON.parse(this.data.startPayload) : [0] }
-    public set startPayload(val: number[]) { typeof val !== 'undefined' ? this.data.startPayload : undefined }
-    public get excludedActions(): number[] { return typeof this.data.excludedActions !== 'undefined' ? JSON.parse(this.data.excludedActions) : [1,80,240] }
+    public get startPayload(): number[] { return typeof this.data.startPayload !== 'undefined' ? JSON.parse(this.data.startPayload) : undefined; }
+    public set startPayload(val: number[]) { this.data.startPayload = JSON.stringify(val); }
+    public get excludedActions(): number[] { return typeof this.data.excludedActions !== 'undefined' ? JSON.parse(this.data.excludedActions) : [1, 80, 240]; }
     protected onchange = (obj, fn) => {
         const handler = {
             get(target, property, receiver) {
@@ -329,6 +342,13 @@ export class IntelliValveCollection extends EqItemCollection<IntelliValve> {
             onComplete: (err, msg) => {
                 if (err) {
                     logger.error(`Error requesting valve addresses.`);
+                    for (let i = 0; i < this.length; i++) {
+                        let v = this.getItemByIndex(i);
+                        //v.sendStatusRequest();
+                        //v.sendLockRequest([1], 50);
+                        //v.address = 1;
+                        //v.setValveAddress(131);
+                    }
                 }
                 else {
                     // We should be able to address this pig but it will come in the form of
@@ -355,7 +375,16 @@ export class IntelliValve extends EqItem {
     public set key(val: string) { this.data.key = val; }
     public get address(): number { return this.data.address || 0 }
     public set address(val: number) { this.data.address = val; }
-    public get uuid(): number[] { return typeof this.data.uuid !== 'undefined' ? JSON.parse(this.data.uuid) : undefined; }
+    public get uuid(): number[] {
+        if (typeof this.data.uuid === 'undefined') {
+            let m = this.statusMessage;
+            if (typeof m !== 'undefined') this.data.uuid = JSON.stringify(m.payload.slice(0, 8));
+            else if (typeof this.grootMessage !== 'undefined')
+                this.data.uuid = JSON.stringify(this.grootMessage.payload);
+            else if(typeof this.key !== 'undefined') this.data.uuid = '[0,128,' + this.key.replace(/:/g, ',') + ']';
+        }
+        return typeof this.data.uuid !== 'undefined' ? JSON.parse(this.data.uuid) : undefined;
+    }
     public set uuid(val: number[]) { this.data.uuid = typeof val !== 'undefined' ? JSON.stringify(val) : undefined; }
     public get processing(): boolean { return utils.makeBool(this.data.processing); }
     public set processing(val: boolean) { this.data.processing = val; }
@@ -381,8 +410,15 @@ export class IntelliValve extends EqItem {
     public set grootMessage(val: Inbound) { this.data.grootMessage = val.toPkt(true); }
     public get statusMessage(): Inbound { return typeof this.data.statusMessage !== 'undefined' ? Inbound.fromPkt(Protocol.IntelliValve, this.data.statusMessage) : undefined; }
     public set statusMessage(val: Inbound) { this.data.statusMessage = val.toPkt(true); }
+    public get statusReturn(): number[] {
+        if (this.data.statusMessage === 'undefined') return;
+        let stat = this.statusMessage;
+        return stat.payload.slice(8);
+    }
     public get commandMessage(): Outbound { return typeof this.data.commandMessage !== 'undefined' ? Outbound.fromPkt(this.data.commandMessage) : undefined; }
-    public set commandMessage(val: Outbound) { this.data.commandMessage = val.toPkt(true); }
+    public set commandMessage(val: Outbound) { this.data.commandMessage = typeof val !== 'undefined' ? val.toPkt(true) : undefined; }
+    public get lockMessage(): Outbound { return typeof this.data.lockMessage !== 'undefined' ? Outbound.fromPkt(this.data.lockMessage) : undefined; }
+    public set lockMessage(val: Outbound) { this.data.lockMessage = typeof val !== 'undefined' ? val.toPkt(true) : undefined; }
 
     public get responses(): any[] { return typeof this.data.responses !== 'undefined' ? this.data.responses : this.data.responses = []; }
     public set responses(val: any[]) { this.data.responses = val; }
@@ -398,10 +434,64 @@ export class IntelliValve extends EqItem {
         out.calcChecksum();
         return out;
     }
+    public async setGrootMethodAsync(groot: any) {
+        let method = groot.method || 'commandCrunch1';
+        return new Promise((resolve, reject) => {
+            this.processing = false;
+            setTimeout(() => {
+                resolve();
+                this.sendNextMessage(method);
+            }, 100);
+        });
+    }
+    public archiveResponses() {
+        if (typeof this.method === 'undefined') return;
+        logger.info(`Archiving ${this.method} settings...`);
+        if (typeof this.data.archive === 'undefined') this.data.archive = {};
+        let arch = this.data.archive;
+        if (typeof arch[this.method] === 'undefined') arch[this.method] = { responses: [], statusChanges:[] };
+        let meth = arch[this.method];
+        meth.responses.length = 0;
+        meth.statusChanges.length = 0;
+        meth.totalCommands = this.data.totalCommands;
+        meth.totalGroots = this.data.totalGroots;
+        meth.totalStatus = this.data.totalStatus;
+        meth.commandMessage = this.data.commandMessage;
+        meth.commandIndex = this.data.commandIndex;
+        meth.uuid = this.data.uuid;
+        meth.tsLastGroot = this.data.tsLastGroot;
+        meth.tsLastStatus = this.data.tsLastStatus;
+        meth.step = this.data.step;
+        if (typeof this.responses !== 'undefined') {
+            meth.responses.push(...this.responses);
+            this.responses.length = 0;
+        }
+        if (typeof this.statusChanges !== 'undefined') {
+            meth.statusChanges.push(...this.statusChanges);
+            this.statusChanges.length = 0;
+        }
+    }
+    public restoreResponses(method: string) {
+        let meth = { totalCommands:0, totalGroots:0, totalStatus: 0, responses:[], statusChanges:[] };
+        if (typeof this.data.archive !== 'undefined' && typeof this.data.archive[method] !== 'undefined') meth = this.data.archive[method];
+        this.data.totalCommands = meth.totalCommands || 0;
+        this.data.totalGroots = meth.totalGroots || 0;
+        this.data.totalStatus = meth.totalStatus;
+        this.data.commandMessage = meth['commandMessage'];
+        this.data.responses = [];
+        this.data.statusChanges = [];
+        this.data.uuid = meth['uuid'];
+        this.data.responses.push(...meth.responses);
+        this.data.statusChanges.push(...meth.statusChanges);
+        this.data.tsLastGroot = meth['tsLastGroot'];
+        this.data.tsLastStatus = meth['tsLastStatus'];
+        this.data.commandIndex = meth['commandIndex'];
+        this.data['step'] = meth['step'];
+    }
     public set lastMessage(val: Outbound) { this.data.lastMessage = val.toPkt(); }
     public get lastVerified(): Outbound { return typeof this.data.lastVerified !== 'undefined' ? Outbound.fromPkt(this.data.lastVerified) : undefined; }
     public set lastVerified(val: Outbound) { this.data.lastVerified = val.toPkt(); }
-    public get method(): string { return typeof this.data.method === 'undefined' || this.data.method === 'commandCrunch' ? this.data.method = 'flybackStatus' : this.data.method; }
+    public get method(): string { return this.data.method; }
     public set method(val: string) { this.data.method = val; }
     public get delay(): number { return this.data.delay || 100 }
     public set delay(val: number) { this.data.delay = val }
@@ -409,25 +499,29 @@ export class IntelliValve extends EqItem {
         // Let's remap the valve address to the incoming value.  It should use the underlying key
         // to set the address this will be from the .
         let out = Outbound.create({
-            action: 80, source: 16, dest: this.address || 12, retries: 5,
+            action: 80, source: 16, dest: typeof this.address === 'undefined' ? 12 : this.address || 12, retries: 5,
             response: Response.create({ action: 1, payload:[80] }),
             onComplete: (err, msg) => {
                 if (err) {
-                    logger.error(`Error setting valve addresses.`);
+                    logger.error(`Error setting valve address to ${address} from ${this.address}.`);
                 }
                 else {
                     // We have set the address we should see no more groots.
                     logger.info(`Valve ${this.key} set to address: ${address}`);
-                    this.processing = true;
                     this.address = address;
-                    logger.info(`Starting ${config.grooterId} ${ this.method } Groot Method...Fingers crossed we are Grooting for you!`);
+                    logger.info(`Starting ${config.grooterId} ${this.method} Groot Method...Fingers crossed we are Grooting for you!`);
+                    let grooter = grooters.transform(config.grooterId);
                     // So here we are.  We need to start the processing of messages.
-                    this.sendNextMessage();
+                    this.sendNextMessage(grooter.method);
+                    //this.sendLockRequest();
+                    //this.send247Message();
                     // Start up the 241s.  Lets send a 240 just in case something changes and we don't see it.
-                    this.sendStatusRequest();
+                    //this.sendLockRequest([1], 50);
+                    setTimeout(() => { this.sendStatusRequest(); }, 2000);
                 }
             }
         });
+        out.sub = 63;
         out.payload = this.uuid;
         out.payload[0] = address;
         out.calcChecksum();
@@ -442,7 +536,6 @@ export class IntelliValve extends EqItem {
         });
         this.statusMessage = msg;
     }
-
     /*** DEPRECATED PROCESSES THAT HAVE OUTLIVED THEIR USEFULNESS ***/
     //public calcNextChangeupCommand(out: Outbound) {
     //    // In this instance we are sending out status messages followed by command messages.
@@ -735,20 +828,26 @@ export class IntelliValve extends EqItem {
     //}
     public statusPayload: number = 0;
     public sendFlybackMessage() {
+        if (this.processing === false) return;
         let self = this;
         // This sends messages related to that 241 return.
-        if (conn.buffer.outBuffer.length > 0) { setTimeout(() => { this.sendFlybackMessage(); }, 20); return; } // Don't do anything we have a full buffer already.  Let the valve catch up.
+        if (conn.buffer.outBuffer.length > 0 || typeof this.statusMessage === 'undefined') { setTimeout(() => { this.sendFlybackMessage(); }, 20); return; } // Don't do anything we have a full buffer already.  Let the valve catch up.
+        if (this.method !== 'flybackStatus') {
+            this.restoreResponses('flybackStatus');
+            this.method = 'flybackStatus';
+        }
         let cmd = this.commandMessage;
-        if (typeof this.method === 'undefined' || this.method !== 'flybackStatus') {
+        if (typeof cmd === 'undefined') {
             let stat = this.statusMessage;
             this.method = 'flybackStatus';
-            logger.info('Switching to flybackStatus Groot method.');
+            //logger.info('Switching to flybackStatus Groot method.');
             // We are going to reset the data.
+            this.restoreResponses('flybackStatus');
             cmd = Outbound.create({ action: 0, source: 16, dest: this.address });
             cmd.payload = stat.payload.slice();
             cmd.payload[0] = this.address; // Set the address into our payload.
             let grooter = grooters.transform(config.grooterId);
-            this.commandIndex = ((grooter.flyback.pair || 0) * 2) + 8;
+            this.commandIndex = (grooter.flyback.commandIndex || 0) + 8;
         }
         else {
             if (typeof cmd === 'undefined') {
@@ -785,48 +884,198 @@ export class IntelliValve extends EqItem {
             }
         }
         this._sendTimer = setTimeout(() => { eq.emit(); self.sendFlybackMessage(); }, this.delay);
+        cmd.sub = 63;
         cmd.calcChecksum();
+        if (cmd.action === 247 && cmd.payload.length > 0 && cmd.payload[0] === 1) cmd.action++;
         this.totalCommands++;
         conn.queueSendMessage(cmd);
         this.commandMessage = cmd;
     }
-    public sendNextMessage() {
-        switch (this.method) {
+    public sendNextMessage(method: string) {
+        this.processing = true;
+        if (this.method !== method) {
+            if (typeof this.method === 'undefined') {
+                logger.info(`Initializing Groot Method ${method}. No previous method specified.`);
+            }
+            else {
+                logger.info(`Changing Groot Method from ${this.method} to ${method}.`);
+                this.archiveResponses();
+                logger.info(`Archived Groot Method ${this.method}`);
+            }
+        }
+        switch (method) {
+            case 'action247':
+                this.send247Message();
+                break;
             case 'commandCrunch1':
                 this.sendCrunchMessage();
                 break;
-            default:
+            case 'flybackStatus':
                 this.sendFlybackMessage();
                 break;
+            case 'driveOn80':
+                this.send80Commands();
+                break;
+            case 'flybackOver80':
+                this.send80FlybackMessage();
+                break;
+            case 'flyback247Status':
+                this.send247StatusMessage();
+                break;
+            default:
+                this.sendCrunchMessage();
+                break;
         }
+
     }
-    public sendCrunchMessage() {
+    public send80FlybackMessage() {
+        if (this.processing === false) return;
         let self = this;
-        /********* Byte patterns evaluated ***********
-         * Tester          Start 08/15 PM                     08/16 AM
-         * @cmc0619        [0]                                [6,67]      
-         * @gw8674         [1,2,4]                            [1,7,157]
-         * @amigaman       [50,128,0,0]                       [50,128,5,206]
-         * @MCQwerty       [0,0,50,128,0,0]
-         * @thumbnut       [1,1,0,128,59,0,0,0,0]             [1,1,0,128,59,0,0,5,187]
-         * @kenneth        [1,2,1,64,128,205,3,3,0,0,0,0]
-         *******************************************/
-        if (this.method !== 'commandCruch1') {
-            this.method = 'commandCrunch1';
-            if (this.method === 'commandCrunch' || typeof this.method === 'undefined') {
-                this.method = 'commandCrunch1';
+        if (conn.buffer.outBuffer.length > 0 || typeof this.uuid === 'undefined') { setTimeout(() => { this.send80FlybackMessage(); }, 20); return; } // Don't do anything we have a full buffer already.Let the valve catch up.
+        if (this.method !== 'flybackOver80') {
+            this.restoreResponses('flybackOver80');
+            this.method = 'flybackOver80';
+            if (typeof eq.startPayload === 'undefined') eq.startPayload = grooters.transform(config.grooterId).drive80;
+        }
+        //out.appendPayloadByte(0);
+        let cmd = this.commandMessage;
+        if (typeof cmd === 'undefined') {
+            if (typeof this.uuid === 'undefined') { eq.emit(); setTimeout(() => { this.send80FlybackMessage(); }, 20); return; }
+            cmd = Outbound.create({ action: 80, source: 16, dest: this.address, payload: [this.address] });
+            
+            let grooter = grooters.transform(config.grooterId);
+            cmd.appendPayloadBytes(this.uuid, this.uuid.length);
+            cmd.payload[0] = this.address;
+            cmd.appendPayloadBytes(grooter.drive80, grooter.drive80.length);
+        }
+        else {
+            let ndx = cmd.payload.length - 1;
+            let allMax = true;
+            for (let i = 9; i < cmd.payload.length; i++) {
+                let b = cmd.payload[i];
+                if (b !== 255) {
+                    allMax = false;
+                    break;
+                }
+            }
+            if (allMax) {
+                // Reset the prior bytes to 0 and add another byte.
+                for (let i = 9; i < cmd.payload.length; i++) {
+                    cmd.payload[i] = 0;
+                }
+                // Add a zero and keep on chumming.
+                cmd.appendPayloadByte(0);
             }
             else {
-                this.commandMessage = undefined;
-                if (typeof eq.startPayload === 'undefined') eq.startPayload = grooters.transform(config.grooterId).crunch;
+                let byte = cmd.payload[ndx];
+                if (byte !== 255) cmd.payload[ndx]++;
+                else {
+                    // This shoud first increment the first byte that is not 255 from the right then
+                    // set all bytes to the right to 0 or default.  Goofy I know but that is the only way to get 
+                    // all potential values.
+                    cmd.payload[ndx] = 0;
+                    for (let i = ndx - 1; i > 8; i--) {
+                        if (cmd.payload[i] !== 255) {
+                            cmd.payload[i]++;
+                            for (let k = i + 1; k < cmd.payload.length; k++) {
+                                cmd.payload[k] = 0;
+                            }
+                            break;
+                        }
+                    }
+                }
             }
+        }
+        cmd.calcChecksum();
+        this.totalCommands++;
+        conn.queueSendMessage(cmd);
+        this.commandMessage = cmd;
+        this._sendTimer = setTimeout(() => { eq.emit(); self.send80FlybackMessage(); }, this.delay);
+    }
+    public send80Commands() {
+        if (this.processing === false) return;
+        let self = this;
+        if (this.method !== 'driveOn80') {
+            this.restoreResponses('driveOn80');
+            this.method = 'driveOn80';
+            if (typeof eq.startPayload === 'undefined') eq.startPayload = grooters.transform(config.grooterId).drive80;
+        }
+        //out.appendPayloadByte(0);
+        if (conn.buffer.outBuffer.length > 0) { setTimeout(() => { this.send80Commands(); }, 20); return; } // Don't do anything we have a full buffer already.  Let the valve catch up.
+        let cmd = this.commandMessage;
+        if (typeof cmd === 'undefined') {
+            cmd = Outbound.create({ action: 80, source: 16, dest: this.address, payload: [this.address] });
+            let grooter = grooters.transform(config.grooterId);
+            cmd.appendPayloadBytes(grooter.drive80, grooter.drive80.length);
+        }
+        else {
+            let ndx = cmd.payload.length - 1;
+            let allMax = true;
+            for (let i = 1; i < cmd.payload.length; i++) {
+                let b = cmd.payload[i];
+                if (b !== 255) {
+                    allMax = false;
+                    break;
+                }
+            }
+            if (allMax) {
+                // Reset the prior bytes to 0 and add another byte.
+                for (let i = 1; i < cmd.payload.length; i++) {
+                    cmd.payload[i] = 0;
+                }
+                // Add a zero and keep on chumming.
+                cmd.appendPayloadByte(0);
+            }
+            else {
+                let byte = cmd.payload[ndx];
+                if (byte !== 255) cmd.payload[ndx]++;
+                else {
+                    // This shoud first increment the first byte that is not 255 from the right then
+                    // set all bytes to the right to 0 or default.  Goofy I know but that is the only way to get 
+                    // all potential values.
+                    cmd.payload[ndx] = 0;
+                    for (let i = ndx - 1; i > 0; i--) {
+                        if (cmd.payload[i] !== 255) {
+                            cmd.payload[i]++;
+                            for (let k = i + 1; k < cmd.payload.length; k++) {
+                                cmd.payload[k] = 0;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        cmd.calcChecksum();
+        this.totalCommands++;
+        conn.queueSendMessage(cmd);
+        this.commandMessage = cmd;
+        this._sendTimer = setTimeout(() => { eq.emit(); self.send80Commands(); }, this.delay);
+
+    }
+    public sendCrunchMessage() {
+        if (this.processing === false) return;
+        let self = this;
+        if (this.method !== 'commandCrunch1') {
+            this.restoreResponses('commandCrunch1');
+            this.method = 'commandCrunch1';
+            if (typeof eq.startPayload === 'undefined') eq.startPayload = grooters.transform(config.grooterId).crunch;
         }
         if (conn.buffer.outBuffer.length > 0) { setTimeout(() => { this.sendCrunchMessage(); }, 20); return; } // Don't do anything we have a full buffer already.  Let the valve catch up.
         // So what this does is rotate through the available actions to get responses.  The starting action in the file will be the one that is used to
         // start all this up.  We will increment each available action for each available payload logging responses along the way.
         let cmd = this.commandMessage;
-        if (typeof cmd === 'undefined') cmd = Outbound.create({ action: 0, source: 16, dest: this.address });
-        if (cmd.payload.length === 0) cmd.payload = eq.startPayload.slice(); // Start at with our payload.
+        if (typeof cmd === 'undefined') {
+            cmd = Outbound.create({ action: 0, source: 16, dest: this.address });
+            //logger.info('First command');
+        }
+        if (cmd.payload.length === 0) {
+            logger.info(`Initializing starting Crunch payload: ${config.grooterId}`);
+            if (typeof eq.startPayload === 'undefined') eq.startPayload = grooters.transform(config.grooterId).crunch;
+            if (typeof eq.startPayload === 'undefined') eq.startPayload = [0];
+            cmd.payload = eq.startPayload.slice(); // Start at with our payload.
+            //logger.info('Setting initial payload');
+        }
         else if (cmd.action !== 255) {
             cmd.action++; // Only need to increment the action since we haven't exhausted these yet.
             let excluded = eq.excludedActions;
@@ -879,30 +1128,251 @@ export class IntelliValve extends EqItem {
                 }
             }
         }
-        this._sendTimer = setTimeout(() => { eq.emit(); self.sendCrunchMessage(); }, this.delay);
+        if (cmd.action === 247 && cmd.payload.length > 0 && cmd.payload[0] === 1) cmd.action++;
         cmd.calcChecksum();
         this.totalCommands++;
         conn.queueSendMessage(cmd);
         this.commandMessage = cmd;
+        this._sendTimer = setTimeout(() => { eq.emit(); self.sendCrunchMessage(); }, this.delay);
     }
     public sendStatusRequest() {
         let self = this;
         // We are sending out a 240 with the valve address.  This should get us a current status.
         let out = Outbound.create({
-            action: 240, source: 16, dest: this.address, payload: [], retries: 5,
+            action: 240, source: 15, dest: this.address, payload: [], retries: 2,
             response: Response.create({ dest: 16, action: 241 }),
             onComplete: (err, msg) => {
                 if (err) {
                     logger.error(`Error requesting valve status.`);
+                    self.setValveAddress(131);
                 }
-                setTimeout(() => { self.sendStatusRequest() }, 1000); // Ask again in 1 second.
+                setTimeout(() => { self.sendStatusRequest() }, 5000); // Ask again in 1 second.
+                //this.setValveAddress(111);
             }
         });
+        out.sub = 63;
         out.calcChecksum();
         //logger.info(`${out.toPkt()}`);
         conn.queueSendMessage(out);
     }
+    public sendLockRequest(payload: number[] = [1], minLength: number = 0) {
+        // We know that 247 payload 1 will lock the valve.
+        let out = Outbound.create({
+            action: 247, source: 16, dest: this.address, payload: payload, retries: 3,
+            response: Response.create({ source: this.address, action: 1, payload: [247] }),
+            onComplete: (err, msg) => {
+                if (err) {
+                    logger.error(`Error locking valve to address ${this.address}: ${err}`);
+                    this.address = 131;
+                    this.setValveAddress(0);
+                }
+                else {
+                    // We have set the address we should see no more groots.
+                    logger.info(`Valve ${this.key} locked to address: ${this.address}`);
+                    this.processing = true;
+                    //logger.info(`Starting ${config.grooterId} ${this.method} Groot Method...Fingers crossed we are Grooting for you!`);
+                    // So here we are.  We need to start the processing of messages.
+                    this.sendPostLock();
+                    // Start up the 241s.  Lets send a 240 just in case something changes and we don't see it.
+                    //this.sendStatusRequest();
+                }
+            }
+        });
+        out.sub = 63;
+        if (minLength > out.payload.length) out.appendPayloadBytes(1, minLength - out.payload.length);
+        logger.info(`${out.toPkt()}`);
+        out.calcChecksum();
+        //logger.info(`${out.toPkt()}`);
+        conn.queueSendMessage(out);
+    }
+    public send247Message() {
+        if (this.processing === false) return;
+        if (conn.buffer.outBuffer.length > 0) { setTimeout(() => { this.send247Message(); }, 20); return; } // Don't do anything we have a full buffer already.  Let the valve catch up.
+        if (this.method !== 'action247') {
+            this.restoreResponses('action247');
+            this.method = 'action247';
+        }
+        let lm = this.commandMessage;
+        if (typeof lm === 'undefined') lm = Outbound.create({ action: 247, source: 16, dest: this.address, payload: [0] });
+        else {
+            let ndx = lm.payload.length - 1;
+            while (ndx >= 0) {
+                let byte = lm.payload[ndx];
+                if (byte === 255) {
+                    lm.payload[ndx] = 0;
+                    if (ndx === 0) {
+                        lm.appendPayloadByte(0);
+                        break;
+                    }
+                    ndx--;
+                }
+                else {
+                    if (ndx === 0 && byte === 0) byte++; // Skip 1 as this will lock up the valve.
+                    lm.payload[ndx] = byte + 1;
+                    break;
+                }
+            }
+        }
+        lm.sub = 63;
+        lm.calcChecksum();
+        this.commandMessage = lm;
+        this.totalCommands++;
+        conn.queueSendMessage(lm);
+        setTimeout(() => {
+            eq.emit();
+            this.send247Message();
+        }, this.delay);
+    }
+    public send247StatusMessage() {
+        if (this.processing === false) return;
+        let self = this;
+        if (conn.buffer.outBuffer.length > 0 || typeof this.data.statusMessage === 'undefined') { setTimeout(() => { this.send247StatusMessage(); }, 20); return; } // Don't do anything we have a full buffer already.Let the valve catch up.
+        if (this.method !== 'flyback247Status') {
+            this.restoreResponses('flyback247Status');
+            console.log('Restored flyback247Status');
+            this.method = 'flyback247Status';
+            if (typeof eq.startPayload === 'undefined') eq.startPayload = grooters.transform(config.grooterId).drive80;
+        }
+        //out.appendPayloadByte(0);
+        let cmd = this.commandMessage;
+        if (typeof cmd === 'undefined') {
+            let stat = this.statusReturn;
+            if (typeof stat === 'undefined') { eq.emit(); setTimeout(() => { this.send247StatusMessage(); }, 20); return; }
+            cmd = Outbound.create({ action: 247, source: 16, dest: this.address });
+            let grooter = grooters.transform(config.grooterId);
+            cmd.payload = this.statusReturn;
+            cmd.payload[0] = this.address;
+            this.commandIndex = 1;
+            this.data.step = 0;
+        }
+        else {
+            let allMax = true;
+            this.commandIndex = Math.min(this.commandIndex, cmd.payload.length - 1);
+            let ndx = this.commandIndex;
+            if (this.data.step > 0) {
+                for (let i = ndx; i < cmd.payload.length; i++) {
+                    let b = cmd.payload[i];
+                    if (b !== 255) {
+                        allMax = false;
+                        break;
+                    }
+                }
+                if (allMax) {
+                    this.commandIndex--;
+                    if (this.commandIndex <= 0) {
+                        logger.info(`We have completed the 247 flyback`);
+                        return;
+                    }
+                    ndx--;
+                    for (let i = ndx; i < cmd.payload.length; i++) cmd.payload[i] = 0;
+                }
+                else {
+                    // Increment the first byte we run into that isn't 255.
+                    for (let i = ndx; i < cmd.payload.length; i++) {
+                        if (cmd.payload[i] !== 255) {
+                            cmd.payload[i]++;
+                            break;
+                        }
+                    }
+                }
+                cmd.payload[0] = this.address;
+            }
+            else {
+                let allMax = true;
+                for (let i = ndx; i < cmd.payload.length; i++) {
+                    let b = cmd.payload[i];
+                    if (b !== 255) {
+                        allMax = false;
+                        break;
+                    }
+                }
+                if (allMax) {
+                    // Reset the prior bytes to 0 and add another byte.
+                    if (this.commandIndex >= cmd.payload.length - 1) {
+                        this.commandIndex = cmd.payload.length - 1;
+                        this.data.step = 1;
+                        for (let i = 1; i < cmd.payload.length; i++) cmd.payload[i] = 0;
+                        cmd.payload[0] = this.address;
+                    }
+                    else {
+                        let stat = this.statusReturn;
+                        for (let i = ndx; i > 0; i--) {
+                            cmd.payload[i] = stat[i];
+                        }
+                        this.commandIndex++;
+                        ndx++;
+                        // Reset the entire command and set the index back to what it originally was.
+                        cmd.payload[0] = this.address;
+                        // Set all the forward payloads to 0.
+                        for (let i = ndx; i < cmd.payload.length; i++) cmd.payload[i] = 0;
+                        //cmd.payload[ndx] = 0;
+                    }
+                }
+                else {
+                    let byte = cmd.payload[ndx];
+                    if (byte !== 255) cmd.payload[ndx]++;
+                    else {
+                        let stat = this.statusReturn;
+                        cmd.payload[ndx] = stat[ndx];
+                        ndx++;
+                        this.commandIndex++;
+                        if (this.commandIndex === 9) {
+                            this.commandIndex = 1;
+                            this.data.step = 1;
+                        }
 
+                        for (let i = ndx; i < cmd.payload.length; i++) {
+                            cmd.payload[i] = 0;
+                        }
+                    }
+                }
+            }
+        }
+        cmd.calcChecksum();
+        this.totalCommands++;
+        conn.queueSendMessage(cmd);
+        this.commandMessage = cmd;
+        this._sendTimer = setTimeout(() => { eq.emit(); self.send247StatusMessage(); }, this.delay);
+    }
+
+    public sendPostLock() {
+        if (this.processing === false) return;
+        let lm = this.lockMessage;
+        if (typeof lm === 'undefined') lm = Outbound.create({ action: 247, source: 16, dest: this.address, payload: [0] });
+        else {
+            let ndx = lm.payload.length - 1;
+            while (ndx >= 0) {
+                let byte = lm.payload[ndx];
+                if (byte === 255) {
+                    lm.payload[ndx] = 0;
+                    if (ndx === 0) {
+                        lm.appendPayloadByte(0);
+                        break;
+                    }
+                    ndx--;
+                }
+                else {
+                    lm.payload[ndx] = byte + 1;
+                    break;
+                }
+            }
+        }
+        lm.sub = 63;
+        lm.calcChecksum();
+        lm.onComplete = (err, msg) => {
+            if (err) {
+                logger.error(`Error sending lock messsage to ${this.address}.`);
+            }
+            else {
+                // We have set the address we should see no more groots.
+                // So here we are.  We need to start the processing of messages.
+                this.sendPostLock();
+            }
+        };
+        this.lockMessage = lm;
+        // Let's 
+        conn.queueSendMessage(lm);
+    }
     public tsLastSend: Timestamp = null;
     public lastPayload: number[] = null;
 }

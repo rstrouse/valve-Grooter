@@ -1600,6 +1600,7 @@ $.ui.position.fieldTip = {
             for (var i = 0; i < o.columns.length; i++) {
                 var col = self._getColumn(i);
                 var td = $('<td><span class="optText">' + col.text + '</span></td>').appendTo(row);
+                if (typeof col.style !== 'undefined') td.css(col.style);
                 if (col.hidden) td.hide();
             }
             return tbl;

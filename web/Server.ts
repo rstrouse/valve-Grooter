@@ -19,6 +19,7 @@ import * as ssdp from 'node-ssdp';
 import * as os from 'os';
 import { URL } from "url";
 import { Timestamp } from '../controller/Constants';
+import { eq } from "../controller/Equipment";
 import extend = require("extend");
 
 // This class serves data and pages for
@@ -164,7 +165,6 @@ export class HttpServer extends ProtoServer {
             //this.sockServer.emit('controller', state.controllerState);
             //sock.conn.emit('controller', state.controllerState);
         });
-
         this.app.use('/socket.io-client', express.static(path.join(process.cwd(), '/node_modules/socket.io-client/dist/'), { maxAge: '60d' }));
     }
     private socketHandler(sock: socketio.Socket) {
@@ -301,6 +301,13 @@ export class HttpServer extends ProtoServer {
             this.app.use('/jquery-ui', express.static(path.join(process.cwd(), '/node_modules/jquery-ui-dist/'), { maxAge: '60d' }));
             this.app.use('/jquery-ui-touch-punch', express.static(path.join(process.cwd(), '/node_modules/jquery-ui-touch-punch-c/'), { maxAge: '60d' }));
             this.app.use('/font-awesome', express.static(path.join(process.cwd(), '/node_modules/@fortawesome/fontawesome-free/'), { maxAge: '60d' }));
+            this.app.put('/processing/grootMethod', async (req, res, next) => {
+                try {
+                    await eq.setGrootMethodAsync(req.body);
+                    return res.status(200).send(eq.data);
+                }
+                catch (err) { next(err); }
+            });
             this.isRunning = true;
         }
     }

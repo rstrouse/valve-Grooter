@@ -19,7 +19,7 @@ export class IVMessage {
                 valve.tsLastStatus = new Timestamp();
                 if (valve.address === 0) {
                     valve.uuid = msg.payload.slice(0, 8);
-                    valve.setValveAddress(138);
+                    valve.setValveAddress(131);
                 }
                 // Let's verify the 241 payload.  If it has changed, log it.
                 else if (valve.statusMessage.payload.join(',') !== msg.payload.join(',')) {
