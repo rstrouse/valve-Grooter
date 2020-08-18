@@ -29,6 +29,8 @@ let grooters = {
     amigaman: { method: 'commandCrunch1', crunch: [50, 128, 0, 0], flyback: { commandIndex: 4 } },
     mcqwerty: { method: 'commandCrunch1', crunch: [0, 0, 50, 128, 0, 0], flyback: { commandIndex: 6 } },
     thumbnut: { method: 'commandCrunch1', crunch: [1, 1, 0, 128, 59, 0, 0, 0, 0], flyback: { commandIndex: 8 } },
+    thumbnut1: { method: 'commandCrunch1', crunch: [1, 1, 7, 43, 59, 0, 0, 0, 0], flyback: { commandIndex: 2 } },
+    thumbnut2: { method: 'commandCrunch1', crunch: [1, 1, 0, 128, 59, 0, 0, 0, 0], flyback: { commandIndex: 8 } },
     kenneth: { method: 'commandCrunch1', crunch: [1, 2, 1, 64, 128, 205, 3, 3, 0, 0, 0, 0], flyback: { commandIndex: 1 } },
     kenneth2: { method: 'commandCrunch1', crunch: [1, 2, 1, 64, 128, 205, 3, 3, 0, 0, 0, 0], flyback: { commandIndex: 3 } },
     transform: function (val: string) {
