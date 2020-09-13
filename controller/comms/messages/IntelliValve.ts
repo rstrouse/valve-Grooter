@@ -3,7 +3,7 @@ import { logger } from "../../../logger/Logger";
 import { Inbound } from "../messages/Messages";
 import { Timestamp } from "../../Constants";
 import { setTimeout } from "timers";
-
+import { config } from "../../../config/Config";
 export class IVMessage {
     public static process(msg: Inbound) {
         // Determine if we are groot.
@@ -19,15 +19,16 @@ export class IVMessage {
                 valve.tsLastStatus = new Timestamp();
                 if (valve.address === 0) {
                     valve.uuid = msg.payload.slice(0, 8);
-                    valve.setValveAddress(131);
+                    valve.initGrooting();
                 }
                 // Let's verify the 241 payload.  If it has changed, log it.
                 else if (valve.statusMessage.payload.join(',') !== msg.payload.join(',')) {
                     logger.info('got 241 Change');
+                    logger.packet(msg, true);
                     valve.addStatusChange(msg);
-                    logger.packet(msg);
                 }
                 valve.statusMessage = msg;
+                if (valve.method === 'command247') logger.packet(msg);
             }
             else if (IVMessage.isGroot(msg)) {
                 let key = eq.valves.makeKey(msg.payload);
@@ -36,14 +37,20 @@ export class IVMessage {
                 valve.tsLastGroot = new Timestamp();
                 valve.grootMessage = msg;
                 valve.totalGroots++;
+                eq.emit();
             }
             else if (IVMessage.is80Ack(msg)) {
+                //logger.packet(msg);
                 //let valve = eq.valves.getValveByAddress(msg.source);
                 //logger.info(`Got 80 Ack ${msg.toPkt()}`);
             }
+            else if (IVMessage.isAck(msg, 247)) {
+                //logger.packet(msg);
+
+            }
             else {
                 eq.valves.addRepsonses(msg);
-                logger.packet(msg);
+                if (!config.enableLogging) logger.packet(msg, true);
                 logger.info(`We got another message ${msg.toPkt()}`);
             }
             return;
@@ -102,7 +109,9 @@ export class IVMessage {
         //return msg.header.join(',') === '165,1,16,12,241,18';
     }
     public static is80Ack(msg: Inbound) {
-        return msg.action === 1 && msg.payload.length === 1 && msg.payload[0] === 80;
+        return IVMessage.isAck(msg, 80);
     }
-
+    public static isAck(msg: Inbound, action: number) {
+        return msg.action === 1 && msg.payload.length === 1 && msg.payload[0] === action;
+    }
 }

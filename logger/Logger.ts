@@ -6,6 +6,7 @@ import { Message, Direction } from '../controller/comms/messages/Messages';
 import { config } from '../config/Config';
 import { webApp } from '../web/Server';
 
+
 const extend = require("extend");
 
 class Logger {
@@ -75,34 +76,33 @@ class Logger {
         if (arr.indexOf(byte) !== -1) return true;
         return false;
     }
-    public packet(msg: Message) {
-        if (logger.cfg.packet.enabled || logger.cfg.app.captureForReplay) {
+    public packet(msg: Message, blog?: boolean) {
+        if (config.enableLogging || blog === true) {
             // Filter out the messages we do not want.
             var bLog: boolean = true;
             // A random packet may actually find its way into the throws should the bytes get messed up
             // in a fashion where the header byte is 255, 0, 255 but we have not identified the channel.
             // Thus far we have seen 165 and 166.
-            var cfgPacket = logger.cfg.packet[msg.protocol] || logger.cfg.packet['unidentified'];
-            if (!logger.cfg.app.captureForReplay) {
-                // Log invalid messages no matter what if the user has selected invalid message logging.
-                if (bLog && !msg.isValid) {
-                    if (!logger.cfg.packet.invalid) bLog = false;
-                }
-                else if (bLog && msg.direction === Direction.Out) {
-                    if (bLog && !cfgPacket.enabled) bLog = false;
-                    if (bLog && cfgPacket.outbound === false) bLog = false;
-                }
-                else {
-                    if (bLog && !cfgPacket.enabled) bLog = false;
-                    if (bLog && !logger.isIncluded(msg.source, cfgPacket.includeSouce)) bLog = false;
-                    if (bLog && !logger.isIncluded(msg.dest, cfgPacket.includeDest)) bLog = false;
-                    if (bLog && !logger.isIncluded(msg.action, cfgPacket.includeActions)) bLog = false;
-                    if (bLog && logger.isExcluded(msg.source, cfgPacket.excludeSource)) bLog = false;
-                    if (bLog && logger.isExcluded(msg.dest, cfgPacket.excludeDest)) bLog = false;
-                    if (bLog && logger.isExcluded(msg.action, cfgPacket.excludeActions)) bLog = false;
-                }
-            }
-
+            //var cfgPacket = logger.cfg.packet[msg.protocol] || logger.cfg.packet['unidentified'];
+            //if (!logger.cfg.app.captureForReplay) {
+            //    // Log invalid messages no matter what if the user has selected invalid message logging.
+            //    if (bLog && !msg.isValid) {
+            //        if (!logger.cfg.packet.invalid) bLog = false;
+            //    }
+            //    else if (bLog && msg.direction === Direction.Out) {
+            //        if (bLog && !cfgPacket.enabled) bLog = false;
+            //        if (bLog && cfgPacket.outbound === false) bLog = false;
+            //    }
+            //    else {
+            //        if (bLog && !cfgPacket.enabled) bLog = false;
+            //        if (bLog && !logger.isIncluded(msg.source, cfgPacket.includeSouce)) bLog = false;
+            //        if (bLog && !logger.isIncluded(msg.dest, cfgPacket.includeDest)) bLog = false;
+            //        if (bLog && !logger.isIncluded(msg.action, cfgPacket.includeActions)) bLog = false;
+            //        if (bLog && logger.isExcluded(msg.source, cfgPacket.excludeSource)) bLog = false;
+            //        if (bLog && logger.isExcluded(msg.dest, cfgPacket.excludeDest)) bLog = false;
+            //        if (bLog && logger.isExcluded(msg.action, cfgPacket.excludeActions)) bLog = false;
+            //    }
+            //}
             if (bLog) {
                 if (logger.cfg.packet.logToFile) {
                     logger.pkts.push(msg);

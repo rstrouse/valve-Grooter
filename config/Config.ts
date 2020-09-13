@@ -42,6 +42,7 @@ class Config {
             throw err;
         }
     }
+    public enableLogging: boolean = false;
     public update(callback?: (err?) => void) {
         // Don't overwrite the configuration if we failed during the initialization.
         try {

@@ -2,7 +2,8 @@
 import * as fs from "fs";
 import * as extend from "extend";
 import * as util from "util";
-
+import * as http from "http";
+import * as https from "https";
 import { setTimeout } from "timers";
 import { Timestamp, ControllerType, utils } from "./Constants";
 import { Protocol, Message, Outbound, Inbound, Response } from "./comms/messages/Messages";
@@ -10,6 +11,7 @@ import { conn } from "./comms/Comms";
 import { logger } from "../logger/Logger";
 import { webApp } from "../web/Server";
 import { config } from "../config/Config";
+import { json } from "express";
 
         /********* Byte patterns evaluated ***********
          * Tester          Start 08/15 PM                     08/16 AM
@@ -24,22 +26,25 @@ import { config } from "../config/Config";
 //in [[], [255, 0, 255], [165, 1, 16, 1, 1, 1], [247], [1, 176]]
 //out[[], [255, 0, 255], [165, 1, 1, 16, 247, 8], [1, 128, 128, 31, 18, 79, 213, 65], [4, 77]]
 let grooters = {
-    cmc0619: { method:'commandCrunch1', crunch: [0], flyback: { commandIndex: 0 } },
-    gw8674: { method: 'commandCrunch1', crunch: [1, 2, 4], flyback: { commandIndex: 2 } },
-    amigaman: { method: 'commandCrunch1', crunch: [50, 128, 0, 0], flyback: { commandIndex: 4 } },
-    mcqwerty: { method: 'commandCrunch1', crunch: [0, 0, 50, 128, 0, 0], flyback: { commandIndex: 6 } },
-    thumbnut: { method: 'commandCrunch1', crunch: [1, 1, 0, 128, 59, 0, 0, 0, 0], flyback: { commandIndex: 8 } },
-    thumbnut1: { method: 'commandCrunch1', crunch: [1, 1, 7, 43, 59, 0, 0, 0, 0], flyback: { commandIndex: 2 } },
-    thumbnut2: { method: 'commandCrunch1', crunch: [1, 1, 0, 128, 59, 0, 0, 0, 0], flyback: { commandIndex: 8 } },
-    kenneth: { method: 'commandCrunch1', crunch: [1, 2, 1, 64, 128, 205, 3, 3, 0, 0, 0, 0], flyback: { commandIndex: 1 } },
-    kenneth2: { method: 'commandCrunch1', crunch: [1, 2, 1, 64, 128, 205, 3, 3, 0, 0, 0, 0], flyback: { commandIndex: 3 } },
+    cmc0619: { method: 'commandCrunch1', address:160, command: [1, 0, 0], crunch: [0], flyback: { commandIndex: 0 } },
+    gw8674: { method: 'commandCrunch', address:160, command: [1, 0, 0, 0], crunch: [1, 2, 4], flyback: { commandIndex: 2 } },
+    amigaman: { method: 'commandCrunch1', address:131, command: [1, 0, 0, 0, 0], crunch: [50, 128, 0, 0], flyback: { commandIndex: 4 } },
+    mcqwerty: { method: 'commandCrunch1', address:160, command: [1, 20, 0, 0, 0, 0], crunch: [0, 0, 50, 128, 0, 0], flyback: { commandIndex: 6 } },
+    thumbnut: { method: 'commandCrunch1', address:160, command: [1, 7, 0, 0, 0, 0, 0], crunch: [1, 1, 0, 128, 59, 0, 0, 0, 0], flyback: { commandIndex: 8 } },
+    thumbnut1: { method: 'commandCrunch1', address:160, command: [1, 128, 0, 0, 0, 0, 0, 0], crunch: [1, 1, 7, 43, 59, 0, 0, 0, 0], flyback: { commandIndex: 2 } },
+    thumbnut2: { method: 'commandCrunch1', address: 161, command: [1, 128, 0, 0, 0, 0, 0, 0, 0, 0], crunch: [1, 1, 0, 128, 59, 0, 0, 0, 0], flyback: { commandIndex: 8 } },
+    kenneth: { method: 'commandCrunch1', address: 160, command: [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0], crunch: [1, 2, 1, 64, 128, 205, 3, 3, 0, 0, 0, 0], flyback: { commandIndex: 1 } },
+    kenneth2: { method: 'commandCrunch1', address:161, command: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0], crunch: [1, 2, 1, 64, 128, 205, 3, 3, 0, 0, 0, 0], flyback: { commandIndex: 3 } },
+    rstrouse: { method: 'command247', address: 160, command: [1, 0,], crunch: [1, 2, 4], flyback: { commandIndex: 10 } },
+    tagyoureit: { method: 'commandCrunch', address: 160, command: [1, 160, 0], crunch: [128, 128, 31, 18, 95, 182, 191, 0], flyback: { commandIndex: 12 } },
     transform: function (val: string) {
         let grooter = this[val.toLowerCase()] || {
-            method: 'driveOn80', crunch: [0], flyback: { commandIndex:0 }
+            address:131, method: 'driveOn80', crunch: [0], flyback: { commandIndex:0 }
         }
         if (typeof grooter.drive80 === 'undefined') {
             grooter.drive80 = new Array(grooter.flyback.commandIndex + 1).fill(0);
         }
+        if (typeof grooter.command === 'undefined') grooter.command = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0];
         return grooter;
     }
 }
@@ -157,7 +162,10 @@ export class Equipment {
         cfg = extend(true, {}, cfgDefault, cfg);
         this.data = this.onchange(cfg, function () { eq.dirty = true; });
         this.valves = new IntelliValveCollection(this.data, 'valves');
-
+        for (let i = 0; i < this.valves.length; i++) {
+            let v = this.valves.getItemByIndex(i);
+            v.hasRelayInstalled = undefined;
+        }
         // Wait a second... set up our valves.
         setTimeout(() => { this.valves.getValveKeys() }, 1000);
 
@@ -334,34 +342,45 @@ export class IntelliValveCollection extends EqItemCollection<IntelliValve> {
             }
         }
     }
-    public getValveKeys() {
-        // Sending a 240 with a source if 12 to all destinations should make the valve(s)
-        // cough up its Groot.  That is even when the valve is bound.  This sends out a 240
-        // to all valves.
-        let out = Outbound.create({
-            action: 240, source: 16, dest: 12, payload: [], retries: 5,
-            response: Response.create({ dest: 16, action: 241 }),
-            onComplete: (err, msg) => {
-                if (err) {
-                    logger.error(`Error requesting valve addresses.`);
-                    for (let i = 0; i < this.length; i++) {
-                        let v = this.getItemByIndex(i);
-                        //v.sendStatusRequest();
-                        //v.sendLockRequest([1], 50);
-                        //v.address = 1;
-                        //v.setValveAddress(131);
+    public getValveKeys(): Promise<boolean> {
+        return new Promise<boolean>((resolve, reject) => {
+            // Sending a 240 with a source if 12 to all destinations should make the valve(s)
+            // cough up its Groot.  That is even when the valve is bound.  This sends out a 240
+            // to all valves.
+            let out = Outbound.create({
+                action: 240, source: 16, dest: 12, payload: [], retries: 5,
+                response: Response.create({ dest: 16, action: 241 }),
+                onComplete: async (err, msg) => {
+                    if (err) {
+                        logger.error(`Error requesting valve addresses.`);
+                        for (let i = 0; i < this.length; i++) {
+                            let v = this.getItemByIndex(i);
+                            if (typeof v.hasRelayInstalled === 'undefined')
+                                v.hasRelayInstalled = await v.maybeJogValve();
+                            else if (v.hasRelayInstalled === true)
+                                await v.jogValve();
+                            if (!v.hasRelayInstalled)
+                                v.status = 'Please Remove Power from your valve for 3 seconds then set power again';
+                            //v.initGrooting();
+                            //v.sendStatusRequest();
+                            //v.sendLockRequest([1], 50);
+                            //v.address = 1;
+                            //v.setValveAddress(131);
+                        }
+                        setTimeout(() => this.getValveKeys(), 100);
+                        resolve(false);
+                    }
+                    else {
+                        // We should be able to address this pig but it will come in the form of
+                        // a 0 on the 241 processed in IntelliValve.ts.
+                        resolve(true);
                     }
                 }
-                else {
-                    // We should be able to address this pig but it will come in the form of
-                    // a 0 on the 241 processed in IntelliValve.ts.
-                    logger.info(`The valve(s) responded`);
-                }
-            }
+            });
+            out.calcChecksum();
+            //logger.info(`${out.toPkt()}`);
+            conn.queueSendMessage(out);
         });
-        out.calcChecksum();
-        //logger.info(`${out.toPkt()}`);
-        conn.queueSendMessage(out);
     }
 }
 
@@ -372,7 +391,25 @@ export class IntelliValve extends EqItem {
         if (typeof this.data.responses === 'undefined') this.data.responses = [];
     }
     public _sendTimer: NodeJS.Timeout = null;
+    public _statusTimer: NodeJS.Timeout = null;
     public id: number;
+    public pollStatus = false;
+    public get grooter(): string { return this.data.grooter; }
+    public set grooter(val: string) { this.data.grooter = val; }
+    public get hasRelayInstalled(): boolean { return this.data.hasRelayInstalled; }
+    public set hasRelayInstalled(val: boolean) { this.data.hasRelayInstalled = val; }
+    public get suspended(): boolean { return this.data.suspended = utils.makeBool(this.data.suspended); }
+    public set suspended(val: boolean) { this.data.suspended = val; }
+    public get status(): string { return this.data.status; }
+    public set status(val: string) {
+        let bemit = this.data.status !== val;
+        this.data.status = val;
+        if (bemit) eq.emit();
+    }
+    public get pinId(): number { return this.data.pinId; }
+    public set pinId(val: number) { this.data.pinId = val; }
+    public get headerId(): number { return this.data.headerId; }
+    public set headerId(val: number) { this.data.headerId = val; }
     public get key(): string { return this.data.key || ''; }
     public set key(val: string) { this.data.key = val; }
     public get address(): number { return this.data.address || 0 }
@@ -383,7 +420,7 @@ export class IntelliValve extends EqItem {
             if (typeof m !== 'undefined') this.data.uuid = JSON.stringify(m.payload.slice(0, 8));
             else if (typeof this.grootMessage !== 'undefined')
                 this.data.uuid = JSON.stringify(this.grootMessage.payload);
-            else if(typeof this.key !== 'undefined') this.data.uuid = '[0,128,' + this.key.replace(/:/g, ',') + ']';
+            else if (typeof this.key !== 'undefined') this.data.uuid = '[0,128,' + this.key.replace(/:/g, ',') + ']';
         }
         return typeof this.data.uuid !== 'undefined' ? JSON.parse(this.data.uuid) : undefined;
     }
@@ -421,7 +458,6 @@ export class IntelliValve extends EqItem {
     public set commandMessage(val: Outbound) { this.data.commandMessage = typeof val !== 'undefined' ? val.toPkt(true) : undefined; }
     public get lockMessage(): Outbound { return typeof this.data.lockMessage !== 'undefined' ? Outbound.fromPkt(this.data.lockMessage) : undefined; }
     public set lockMessage(val: Outbound) { this.data.lockMessage = typeof val !== 'undefined' ? val.toPkt(true) : undefined; }
-
     public get responses(): any[] { return typeof this.data.responses !== 'undefined' ? this.data.responses : this.data.responses = []; }
     public set responses(val: any[]) { this.data.responses = val; }
     public get statusChanges(): any[] { return typeof this.data.statusChanges !== 'undefined' ? this.data.statusChanges : this.data.statusChanges = []; }
@@ -480,8 +516,8 @@ export class IntelliValve extends EqItem {
         this.data.totalGroots = meth.totalGroots || 0;
         this.data.totalStatus = meth.totalStatus;
         this.data.commandMessage = meth['commandMessage'];
-        this.data.responses = [];
-        this.data.statusChanges = [];
+        this.data.responses.length = 0;
+        this.data.statusChanges.length = 0;
         this.data.uuid = meth['uuid'];
         this.data.responses.push(...meth.responses);
         this.data.statusChanges.push(...meth.statusChanges);
@@ -497,44 +533,126 @@ export class IntelliValve extends EqItem {
     public set method(val: string) { this.data.method = val; }
     public get delay(): number { return this.data.delay || 100 }
     public set delay(val: number) { this.data.delay = val }
-    public setValveAddress(address: number) {
-        // Let's remap the valve address to the incoming value.  It should use the underlying key
-        // to set the address this will be from the .
-        let out = Outbound.create({
-            action: 80, source: 16, dest: typeof this.address === 'undefined' ? 12 : this.address || 12, retries: 5,
-            response: Response.create({ action: 1, payload:[80] }),
-            onComplete: (err, msg) => {
-                if (err) {
-                    logger.error(`Error setting valve address to ${address} from ${this.address}.`);
+    public maybeJogValve(): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            let sec = config.getSection('web.services.relayEquipmentManager', { enabled: false });
+            logger.info(`Checking for Valve Relay`);
+            if (sec.enabled) {
+                // See if there is an endpoint on this address.
+                if (typeof this.headerId === 'undefined' || typeof this.pinId === 'undefined') {
+                    logger.info(`The header and pin identifiers for relayEquipmentManager have not been defined. headerId:${this.headerId} - pinId:${this.pinId}`);
+                    return resolve(false);
                 }
-                else {
-                    // We have set the address we should see no more groots.
-                    logger.info(`Valve ${this.key} set to address: ${address}`);
-                    this.address = address;
-                    logger.info(`Starting ${config.grooterId} ${this.method} Groot Method...Fingers crossed we are Grooting for you!`);
-                    let grooter = grooters.transform(config.grooterId);
-                    // So here we are.  We need to start the processing of messages.
-                    this.sendNextMessage(grooter.method);
-                    //this.sendLockRequest();
-                    //this.send247Message();
-                    // Start up the 241s.  Lets send a 240 just in case something changes and we don't see it.
-                    //this.sendLockRequest([1], 50);
-                    setTimeout(() => { this.sendStatusRequest(); }, 2000);
-                }
+                let bjog = await this.jogValve();
+                return resolve(bjog);
             }
+            else logger.info(`The web.service.relayEquipmentManager service is not enabled.`);
+            return resolve(false);
         });
-        out.sub = 63;
-        out.payload = this.uuid;
-        out.payload[0] = address;
-        out.calcChecksum();
-        //logger.info(`${out.toPkt()}`);
-        conn.queueSendMessage(out);
+    }
+    public async initGrooting() {
+        try {
+            this.status = 'Initializing';
+            this.suspended = false;
+            let grooter = grooters.transform(config.grooterId);
+            this.grooter = config.grooterId;
+            await this.setValveAddress(grooter.address, 12);
+            this.sendNextMessage(grooter.method);
+        }
+        catch (err) { logger.error(err); }
+    }
+    public setValveAddress(newAddress: number, oldAddress: number): Promise<boolean> {
+        return new Promise<boolean>((resolve, reject) => {
+            this.status = `Setting valve address to ${newAddress}`;
+            // Let's remap the valve address to the incoming value.  It should use the underlying key
+            let addr = (typeof oldAddress === 'undefined') ? 12 : oldAddress;
+            let out = Outbound.create({
+                action: 80, source: 16, dest: addr, retries: 5,
+                response: Response.create({ action: 1, payload: [80] }),
+                onComplete: async (err, msg) => {
+                    try {
+                        if (err) {
+                            logger.error(`Error setting valve address to ${newAddress} from ${addr}.`);
+                            this.suspended = true;
+                            this.status = 'Suspended: Unable to set valve address';
+                            if (addr !== this.address && oldAddress !== newAddress) {
+                                await this.jogValve();
+                                await this.setValveAddress(newAddress, 12).catch(async err => {
+                                    reject(err);
+                                });
+                            }
+                            else {
+                                await this.setValveAddress(newAddress, 12).catch(async err => {
+                                    await this.jogValve();
+                                    logger.error(`Error setting valve address to  from ${this.address++}.`);
+                                    reject(err);
+                                });
+
+                            }
+                        }
+                        else {
+                            // We have set the address we should see no more groots.
+                            logger.info(`Valve ${this.key} set to address: ${newAddress}`);
+                            this.address = newAddress;
+                            this.status = `Valve address set to ${newAddress}`;
+                            resolve(true);
+                            if (typeof oldAddress === 'undefined') {
+                                logger.info(`Starting ${config.grooterId} ${this.method} Groot Method...Fingers crossed we are Grooting for you!`);
+                                let grooter = grooters.transform(config.grooterId);
+                                // So here we are.  We need to start the processing of messages.
+                                this.sendNextMessage(grooter.method);
+                                if (this.pollStatus) this._statusTimer = setTimeout(() => { this.sendStatusRequest(); }, 2000);
+                            }
+                            //this.sendLockRequest();
+                            //this.send247Message();
+                            // Start up the 241s.  Lets send a 240 just in case something changes and we don't see it.
+                            //this.sendLockRequest([1], 50);
+                        }
+                    } catch (err) { reject(err); }
+                }
+            });
+            out.sub = 1;
+            out.payload = this.uuid;
+            out.payload[0] = newAddress;
+            out.calcChecksum();
+            //logger.info(`${out.toPkt()}`);
+            conn.queueSendMessage(out);
+        });
+    }
+    public resetValveAddress(newAddress: number, oldAddress: number): Promise<boolean> {
+        return new Promise<boolean>((resolve, reject) => {
+            // Let's remap the valve address to the incoming value.  It should use the underlying key
+            let addr = (typeof oldAddress === 'undefined') ? 12 : oldAddress;
+            logger.info(`Resetting Valve Address: ${oldAddress} to ${newAddress}`);
+            let out = Outbound.create({
+                action: 80, source: 16, dest: addr, retries: 5,
+                response: Response.create({ action: 1, payload: [80] }),
+                onComplete: (err, msg) => {
+                    if (err) {
+                        logger.error(`Error resetting valve address to ${newAddress} from ${addr}.`);
+                        reject(err);
+                    }
+                    else {
+                        // We have set the address we should see no more groots.
+                        logger.info(`Valve ${this.key} set to address: ${newAddress}`);
+                        this.address = newAddress;
+                        resolve(true);
+                    }
+                }
+            });
+            out.sub = 1;
+            out.payload = this.uuid;
+            out.payload[0] = newAddress;
+            out.calcChecksum();
+            //logger.info(`${out.toPkt()}`);
+            conn.queueSendMessage(out);
+        });
     }
     public addStatusChange(msg: Inbound) {
         this.statusChanges.push({
             ts: Timestamp.toISOLocal(msg.timestamp),
-            curr: JSON.stringify(msg.payload.slice(8)),
-            prev: typeof this.statusMessage !== 'undefined' ? JSON.stringify(this.statusMessage.payload.slice(8)) : ''
+            curr: JSON.stringify(msg.toPkt(true)),
+            prev: typeof this.statusMessage !== 'undefined' ? JSON.stringify(this.statusMessage.toPkt(true)) : ''
         });
         this.statusMessage = msg;
     }
@@ -906,26 +1024,36 @@ export class IntelliValve extends EqItem {
             }
         }
         switch (method) {
+            case 'command247':
+                this.sequenceSetCommands();
+                break;
             case 'action247':
                 this.send247Message();
+                this.pollStatus = true;
                 break;
             case 'commandCrunch1':
                 this.sendCrunchMessage();
+                this.pollStatus = true;
                 break;
             case 'flybackStatus':
                 this.sendFlybackMessage();
+                this.pollStatus = true;
                 break;
             case 'driveOn80':
                 this.send80Commands();
+                this.pollStatus = true;
                 break;
             case 'flybackOver80':
                 this.send80FlybackMessage();
+                this.pollStatus = true;
                 break;
             case 'flyback247Status':
                 this.send247StatusMessage();
+                this.pollStatus = true;
                 break;
             default:
                 this.sendCrunchMessage();
+                this.pollStatus = true;
                 break;
         }
 
@@ -1062,6 +1190,8 @@ export class IntelliValve extends EqItem {
             this.restoreResponses('commandCrunch1');
             this.method = 'commandCrunch1';
             if (typeof eq.startPayload === 'undefined') eq.startPayload = grooters.transform(config.grooterId).crunch;
+            this.pollStatus = true;
+            this.sendStatusRequest();
         }
         if (conn.buffer.outBuffer.length > 0) { setTimeout(() => { this.sendCrunchMessage(); }, 20); return; } // Don't do anything we have a full buffer already.  Let the valve catch up.
         // So what this does is rotate through the available actions to get responses.  The starting action in the file will be the one that is used to
@@ -1139,6 +1269,8 @@ export class IntelliValve extends EqItem {
     }
     public sendStatusRequest() {
         let self = this;
+        if (this._statusTimer) clearTimeout(this._statusTimer);
+        this._statusTimer = null;
         // We are sending out a 240 with the valve address.  This should get us a current status.
         let out = Outbound.create({
             action: 240, source: 15, dest: this.address, payload: [], retries: 2,
@@ -1146,13 +1278,13 @@ export class IntelliValve extends EqItem {
             onComplete: (err, msg) => {
                 if (err) {
                     logger.error(`Error requesting valve status.`);
-                    self.setValveAddress(131);
+                    self.setValveAddress(this.address, 12);
                 }
-                setTimeout(() => { self.sendStatusRequest() }, 5000); // Ask again in 1 second.
+                if (this.pollStatus) this._statusTimer = setTimeout(() => { self.sendStatusRequest() }, 5000); // Ask again in 1 second.
                 //this.setValveAddress(111);
             }
         });
-        out.sub = 63;
+        out.sub = 1;
         out.calcChecksum();
         //logger.info(`${out.toPkt()}`);
         conn.queueSendMessage(out);
@@ -1165,8 +1297,7 @@ export class IntelliValve extends EqItem {
             onComplete: (err, msg) => {
                 if (err) {
                     logger.error(`Error locking valve to address ${this.address}: ${err}`);
-                    this.address = 131;
-                    this.setValveAddress(0);
+                    this.resetValveAddress(this.address, 12);
                 }
                 else {
                     // We have set the address we should see no more groots.
@@ -1193,6 +1324,8 @@ export class IntelliValve extends EqItem {
         if (this.method !== 'action247') {
             this.restoreResponses('action247');
             this.method = 'action247';
+            this.pollStatus = true;
+            this.sendStatusRequest();
         }
         let lm = this.commandMessage;
         if (typeof lm === 'undefined') lm = Outbound.create({ action: 247, source: 16, dest: this.address, payload: [0] });
@@ -1233,6 +1366,8 @@ export class IntelliValve extends EqItem {
             this.restoreResponses('flyback247Status');
             console.log('Restored flyback247Status');
             this.method = 'flyback247Status';
+            this.pollStatus = true;
+            this.sendStatusRequest();
             if (typeof eq.startPayload === 'undefined') eq.startPayload = grooters.transform(config.grooterId).drive80;
         }
         //out.appendPayloadByte(0);
@@ -1336,7 +1471,288 @@ export class IntelliValve extends EqItem {
         this.commandMessage = cmd;
         this._sendTimer = setTimeout(() => { eq.emit(); self.send247StatusMessage(); }, this.delay);
     }
+    public jogValve(): Promise<boolean> {
+        return new Promise<boolean>((resolve, reject) => {
+            try {
+                let req: http.ClientRequest;
+                this.status = 'Jogging Valve... please wait!';
+                let opts = extend(true, {}, config.getSection('web.services.relayEquipmentManager'));
+                if ((typeof opts.hostname === 'undefined' || !opts.hostname) && (typeof opts.host === 'undefined' || !opts.host || opts.host === '*')) {
+                    logger.warn(`Interface: relayEquipmentManager has not resolved to a valid host.`);
+                    return reject(`Interface: relayEquipmentManager has not resolved to a valid host.`);
+                }
+                opts.path = '/state/jogPin';
+                opts.method = 'PUT';
+                opts.headers = { 'CONTENT-TYPE': 'application/json' };
+                let sbody = JSON.stringify({ pinId: this.pinId, headerId: this.headerId || 1, delay: 1000, state: true });
+                if (typeof sbody !== 'undefined') {
+                    if (sbody.charAt(0) === '"' && sbody.charAt(sbody.length - 1) === '"') sbody = sbody.substr(1, sbody.length - 2);
+                    opts.headers["CONTENT-LENGTH"] = Buffer.byteLength(sbody || '');
+                }
+                if (opts.port === 443 || (opts.protocol || '').startsWith('https')) {
+                    req = https.request(opts, (response: http.IncomingMessage) => {
+                        resolve(true);
+                        //console.log(response);
+                    });
+                }
+                else {
+                    req = http.request(opts, (response: http.IncomingMessage) => {
+                        if (response.statusCode !== 200) {
+                            this.status = 'Valve cannot be rebooted';
+                            reject(new Error(`HTTP:${response.statusCode} Cannot jog valve - ${response.statusMessage}`));
+                            logger.error(response.read());
+                        }
+                        else {
+                            this.status = 'Waiting for valve to reboot...';
+                            setTimeout(() => { resolve(true); }, 5000);
+                            this.status = 'Valve rebooted';
+                        }
+                        resolve(true);
+                        //console.log(response.statusCode);
+                    });
+                }
+                req.on('error', (err, req, res) => {
+                    logger.error(err); reject(err);
+                });
+                if (typeof sbody !== 'undefined') {
+                    req.write(sbody);
+                }
+                req.end();
+            }
+            catch (err) { reject(err); }
+        });
+    }
+    public resetValve(): Promise<boolean> {
+        return new Promise<boolean>(async (resolve, reject) => {
+            try {
+                logger.info('Jogging valve');
+                await this.jogValve();
+                await this.resetValveAddress(this.address, 12);
+                resolve(true);
+            }
+            catch (err) { reject(err); }
+        });
+    }
+    public async sequenceSetCommands() {
+        try {
+            if (this.method !== 'command247') {
+                logger.info('Initializing Command 247');
+                this.restoreResponses('command247');
+                // We first need to jog the valve.
+                logger.info('Command 247 Initialized');
+                this.method = 'command247';
+            }
+            this.pollStatus = true;
+            let b = await this.getStatusMessage();
+            b = await this.setValveSetMode();
+            //await new Promise((resolve, reject) => setTimeout(() => { resolve(); }, 10000));
+            b = await eq.valves.getValveKeys();
+            if (b) {
+                // Reset the valve address.
+                this.setValveAddress(this.address, 12);
+            }
+            //b = await this.getStatusMessage();
+            //if (!b) {
+            //    await this.resetValve();
+            //    setTimeout(() => { this.sequenceSetCommands(); }, 2000);
+            //}
+            //else {
+            //else {
 
+            //}
+        } catch (err) { logger.error(err); }
+    }
+   
+    public getStatusMessage(): Promise<boolean> {
+        return new Promise<boolean>((resolve, reject) => {
+            // We are sending out a 240 with the valve address.  This should get us a current status.
+            let out = Outbound.create({
+                action: 240, source: 15, dest: this.address, payload: [], retries: 2,
+                response: Response.create({ action: 241 }),
+                onComplete: (err, msg) => {
+                    if (err) {
+                        logger.error(`Error requesting valve status.`);
+                        resolve(false);
+                    }
+                    else {
+                        logger.info('We have successfully executed after the message was sent.')
+                        resolve(true);
+                    }
+                }
+            });
+            out.sub = 1;
+            out.calcChecksum();
+            logger.packet(out);
+            //logger.info(`${out.toPkt()}`);
+            conn.queueSendMessage(out);
+        });
+    }
+    public setValveSetMode(): Promise<boolean> {
+        return new Promise<boolean>((resolve, reject) => {
+            logger.info('Setting Valve Set Mode');
+            this.status = 'Locking valve address';
+            let out = Outbound.create({
+                source: 16, dest: this.address,
+                action: 247, payload: [1, 2],
+                retries: 1,
+                response: Response.create({action:1, payload:[247]}),
+                onComplete: (err, msg) => {
+                    if (err) {
+                        logger.error(err);
+                        this.status = `Error setting set mode for ${this.address}`;
+                        resolve(false);
+                    }
+                    else {
+                        this.status = `Valve address locked to ${this.address}`;
+                        logger.info('Set Valve Set Mode');
+                        setTimeout(() => { resolve(true); }, 10000);
+                    }
+                }
+            });
+            out.sub = 63;
+            out.calcChecksum();
+            logger.packet(out);
+            conn.queueSendMessage(out);
+        });
+    }
+    public async sequence247Command() {
+        try {
+            logger.info(`Sequencing 247 command`);
+            await this.send247CommandMessage();
+            let stat = await this.test247Status();
+            if (!stat) {
+                await this.resetValve();
+            }
+            eq.emit();
+            setTimeout(() => this.sequence247Command(), this.delay);
+        }
+        catch (err) {
+            await this.resetValve();
+            setTimeout(() => this.sequence247Command(), this.delay);
+            //logger.error(err);
+        }
+    }
+    public async test247Status(): Promise<boolean> {
+        return new Promise<boolean>((resolve, reject) => {
+            let self = this;
+            // We are sending out a 240 with the valve address.  This should get us a current status.
+            let out = Outbound.create({
+                action: 240, source: 15, dest: this.address, payload: [], retries: 2,
+                response: Response.create({ dest: 16, action: 241 }),
+                onComplete: (err, msg) => {
+                    if (err) {
+                        logger.error(`Error requesting valve status.`);
+                        resolve(false);
+                    }
+                    else {
+                        logger.info('We have successfully executed after the message was sent.')
+                        resolve(true);
+                    }
+                }
+            });
+            out.sub = 1;
+            out.calcChecksum();
+            //logger.info(`${out.toPkt()}`);
+            conn.queueSendMessage(out);
+
+        });
+    }
+    public async send247CommandMessage(): Promise<Outbound> {
+        return new Promise<Outbound>(async (resolve, reject) => {
+            try {
+                let self = this;
+                if (this.processing === false) return;
+                if (this.method !== 'command247') {
+                    logger.info('Initializing Command 247');
+                    this.restoreResponses('command247');
+                    this.pollStatus = false;
+                    // We first need to jog the valve.
+                    if (!await this.jogValve()) {
+                        reject(new Error('Cannot jog valve command 247 aborted'));
+                    }
+                    else {
+                        this.method = 'command247';
+                        logger.info('Command 247 Initialized');
+                    }
+                }
+                let lm = this.commandMessage;
+                if (typeof lm === 'undefined') {
+                    lm = Outbound.create({ action: 247, source: 16, dest: this.address, payload: [1] });
+                }
+                if (lm.payload.length === 0) {
+                    logger.info(`Initializing starting 247 Command payload: ${config.grooterId}`);
+                    if (typeof eq.startPayload === 'undefined') {
+                        eq.startPayload = grooters.transform(config.grooterId).crunch;
+                        eq.startPayload[0] = 1;
+                    }
+                    if (typeof eq.startPayload === 'undefined') eq.startPayload = [1];
+                    lm.payload = eq.startPayload.slice(); // Start at with our payload.
+                    logger.info('Setting initial payload');
+                }
+                else {
+                    let ndx = lm.payload.length - 1;
+                    while (ndx >= 1) {
+                        let byte = lm.payload[ndx];
+                        if (byte === 255) {
+                            lm.payload[ndx] = 0;
+                            if (ndx === 0) {
+                                lm.appendPayloadByte(0);
+                                break;
+                            }
+                            ndx--;
+                        }
+                        else {
+                            lm.payload[ndx]++;
+                            break;
+                        }
+                    }
+                }
+                lm.sub = 1;
+                lm.calcChecksum();
+                this.commandMessage = lm;
+                this.totalCommands++;
+                lm.retries = 1;
+                // Test to see if we can get an address.
+                lm.response = Response.create({ source: this.address, action: 1, payload: [247] }),
+                    lm.onComplete = (err) => {
+                        // Ask for the status. If it is successful then we need to log the packet as successful.
+                        resolve(lm);
+                        this.commandMessage = lm;
+                    };
+                conn.queueSendMessage(lm);
+            } catch (err) { reject(err); }
+        });
+        //setTimeout(() => {
+        //    eq.emit();
+        //    this.send247CommandMessage();
+        //}, this.delay);
+  
+
+    }
+    public async sendPost247Command() {
+        let self = this;
+        // We are sending out a 240 with the valve address.  This should get us a current status.
+        let out = Outbound.create({
+            action: 240, source: 15, dest: this.address, payload: [], retries: 2,
+            response: Response.create({ dest: 16, action: 241 }),
+            onComplete: (err, msg) => {
+                if (err) {
+                    logger.error(`Error requesting valve status.`);
+                    self.setValveAddress(this.address, 12);
+                }
+                else {
+                    setTimeout(() => {
+                        eq.emit();
+                        this.send247CommandMessage();
+                    }, this.delay);
+                }
+            }
+        });
+        out.sub = 1;
+        out.calcChecksum();
+        //logger.info(`${out.toPkt()}`);
+        conn.queueSendMessage(out);
+    }
     public sendPostLock() {
         if (this.processing === false) return;
         let lm = this.lockMessage;

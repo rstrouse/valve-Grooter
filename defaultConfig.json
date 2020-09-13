@@ -47,7 +47,17 @@
         "enabled": false
       }
     },
-    "services": {}
+    "services": {
+      "relayEquipmentManager": {
+        "enabled": false,
+        "hostname": "0.0.0.0",
+        "port": 8080,
+        "httpsRedirect": false,
+        "authentication": "none",
+        "authFile": "/users.htpasswd"
+      }
+
+    }
   },
   "log": {
     "packet": {

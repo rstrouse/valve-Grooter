@@ -77,8 +77,12 @@
             var pnl = $('<div></div>').appendTo(el).addClass('valvePanel');
 
             var line = $('<div></div>').appendTo(pnl);
-            $('<label></label>').appendTo(line).text('Valve Key')
+            $('<label></label>').appendTo(line).text('Grooter');
+            $('<span></span>').appendTo(line).attr('data-bind', 'grooter');
+            line = $('<div></div>').appendTo(pnl);
+            $('<label></label>').appendTo(line).text('Valve Key');
             $('<span></span>').appendTo(line).attr('data-bind', 'key');
+            $('<span></span>').appendTo(line).attr('data-bind', 'status');
             $('<input type="hidden"></input>').appendTo(line).attr('data-bind', 'id').attr('data-fmttype', 'int').attr('data-fmtmask', '#');
             line = $('<div></div>').appendTo(pnl);
             $('<label></label>').appendTo(line).text('Address');
@@ -91,6 +95,7 @@
                 bindColumn: 0, displayColumn: 0, labelText: 'Method', binding: 'method',
                 columns: [{ binding: 'val', text: 'Method', style: { whiteSpace: 'nowrap' } }, { binding: 'desc', text: 'Description', style: { width: '450px' } }],
                 items: [{ val: 'commandCrunch1', desc: 'Crunch all available payloads for all actions.' },
+                    { val: 'command247', desc: 'Sequences the 247 1 command.  If the valve locks up it resets the valve using REM.' },
                 { val: 'action247', desc: 'Send all payloads on 247 with the address as the first byte.' },
                 { val: 'flybackStatus', desc: 'Feed the status result back to the valve while changing payload bytes.' },
                 { val: 'driveOn80', desc: 'Send payloads back on action 80 with the address as the first byte so it does not readdress the valve.' },
@@ -220,10 +225,10 @@
                         line = $('<div></div>').appendTo(r);
                         $('<label></label>').appendTo(line).text('New');
                         $('<span></span>').appendTo(line).attr('data-bind', 'curr');
-                        dataBinder.bind(r, data.statusChanges[i]);
+                        dataBinder.bind(s, data.statusChanges[i]);
                     }
                     else
-                        dataBinder.bind(r, data.statusChanges[i]);
+                        dataBinder.bind(s, data.statusChanges[i]);
                 }
                 // Trim off all the ones that are greater than the number of responses.
                 var rs = stat.find('div.status');

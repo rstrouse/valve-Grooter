@@ -406,7 +406,7 @@ export class SendRecieveBuffer {
                         //eq.valves.resetToVerified();
                         //console.log(JSON.stringify(conn.buffer._inBytes));
                     }
-                    //logger.packet(msg);
+                    logger.packet(msg);
                     conn.buffer._msg = null;
                 }
                 if (ndx > 0) conn.buffer._inBytes = conn.buffer._inBytes.slice(ndx);
