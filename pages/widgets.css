@@ -898,3 +898,7 @@ div.picCheckbox input[type=checkbox] {
   margin-top: 0px;
   margin-bottom: 0px;
   line-height: 1.4em; }
+
+div.statusChanges label {
+  display: inline-block;
+  width: 3rem; }

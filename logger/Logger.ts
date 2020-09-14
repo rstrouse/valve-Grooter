@@ -123,13 +123,12 @@ class Logger {
         }
     }
     public logAPI(apiReq: string) {
-        if (logger.cfg.app.captureForReplay) {
+        //if (logger.cfg.app.captureForReplay) {
             // TODO: buffer this
             fs.appendFile(logger.pktPath, apiReq, function (err) {
                 if (err) logger.error('Error writing packet to %s: %s', logger.pktPath, err);
             });
-        }
-
+        //}
     }
     public clearMessages() {
         if (fs.existsSync(logger.pktPath)) {

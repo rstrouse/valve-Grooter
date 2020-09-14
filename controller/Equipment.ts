@@ -4,6 +4,7 @@ import * as extend from "extend";
 import * as util from "util";
 import * as http from "http";
 import * as https from "https";
+import * as os from 'os';
 import { setTimeout } from "timers";
 import { Timestamp, ControllerType, utils } from "./Constants";
 import { Protocol, Message, Outbound, Inbound, Response } from "./comms/messages/Messages";
@@ -36,7 +37,7 @@ let grooters = {
     kenneth: { method: 'commandCrunch1', address: 160, command: [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0], crunch: [1, 2, 1, 64, 128, 205, 3, 3, 0, 0, 0, 0], flyback: { commandIndex: 1 } },
     kenneth2: { method: 'commandCrunch1', address:161, command: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0], crunch: [1, 2, 1, 64, 128, 205, 3, 3, 0, 0, 0, 0], flyback: { commandIndex: 3 } },
     rstrouse: { method: 'command247', address: 160, command: [1, 0,], crunch: [1, 2, 4], flyback: { commandIndex: 10 } },
-    tagyoureit: { method: 'commandCrunch', address: 160, command: [1, 160, 0], crunch: [128, 128, 31, 18, 95, 182, 191, 0], flyback: { commandIndex: 12 } },
+    tagyoureit: { method: 'command247', address: 160, command: [1, 160, 0], crunch: [128, 128, 31, 18, 95, 182, 191, 0], flyback: { commandIndex: 12 } },
     transform: function (val: string) {
         let grooter = this[val.toLowerCase()] || {
             address:131, method: 'driveOn80', crunch: [0], flyback: { commandIndex:0 }
@@ -489,8 +490,8 @@ export class IntelliValve extends EqItem {
         let arch = this.data.archive;
         if (typeof arch[this.method] === 'undefined') arch[this.method] = { responses: [], statusChanges:[] };
         let meth = arch[this.method];
-        meth.responses.length = 0;
-        meth.statusChanges.length = 0;
+        typeof meth.responses !== 'undefined' ? meth.responses.length = 0 : meth.responses = [];
+        typeof meth.statusChanges !== 'undefined' ? meth.statusChanges.length = 0 : meth.statusChanges = [];
         meth.totalCommands = this.data.totalCommands;
         meth.totalGroots = this.data.totalGroots;
         meth.totalStatus = this.data.totalStatus;
@@ -516,8 +517,8 @@ export class IntelliValve extends EqItem {
         this.data.totalGroots = meth.totalGroots || 0;
         this.data.totalStatus = meth.totalStatus;
         this.data.commandMessage = meth['commandMessage'];
-        this.data.responses.length = 0;
-        this.data.statusChanges.length = 0;
+        typeof this.data.responses !== 'undefined' ? this.data.responses.length = 0 : this.data.responses = [];
+        typeof this.data.statusChanges !== 'undefined' ? this.data.statusChanges.length = 0 : this.data.statusChanges = [];
         this.data.uuid = meth['uuid'];
         this.data.responses.push(...meth.responses);
         this.data.statusChanges.push(...meth.statusChanges);
@@ -651,8 +652,8 @@ export class IntelliValve extends EqItem {
     public addStatusChange(msg: Inbound) {
         this.statusChanges.push({
             ts: Timestamp.toISOLocal(msg.timestamp),
-            curr: JSON.stringify(msg.toPkt(true)),
-            prev: typeof this.statusMessage !== 'undefined' ? JSON.stringify(this.statusMessage.toPkt(true)) : ''
+            curr: msg.toPkt(true),
+            prev: typeof this.statusMessage !== 'undefined' ? this.statusMessage.toPkt(true) : ''
         });
         this.statusMessage = msg;
     }
@@ -1004,7 +1005,7 @@ export class IntelliValve extends EqItem {
             }
         }
         this._sendTimer = setTimeout(() => { eq.emit(); self.sendFlybackMessage(); }, this.delay);
-        cmd.sub = 63;
+        cmd.sub = 1;
         cmd.calcChecksum();
         if (cmd.action === 247 && cmd.payload.length > 0 && cmd.payload[0] === 1) cmd.action++;
         this.totalCommands++;
@@ -1278,7 +1279,11 @@ export class IntelliValve extends EqItem {
             onComplete: (err, msg) => {
                 if (err) {
                     logger.error(`Error requesting valve status.`);
+                    this.status = 'Error requesting valve status.';
                     self.setValveAddress(this.address, 12);
+                }
+                else {
+                    eq.emit();
                 }
                 if (this.pollStatus) this._statusTimer = setTimeout(() => { self.sendStatusRequest() }, 5000); // Ask again in 1 second.
                 //this.setValveAddress(111);
@@ -1311,7 +1316,7 @@ export class IntelliValve extends EqItem {
                 }
             }
         });
-        out.sub = 63;
+        out.sub = 1;
         if (minLength > out.payload.length) out.appendPayloadBytes(1, minLength - out.payload.length);
         logger.info(`${out.toPkt()}`);
         out.calcChecksum();
@@ -1348,7 +1353,7 @@ export class IntelliValve extends EqItem {
                 }
             }
         }
-        lm.sub = 63;
+        lm.sub = 1;
         lm.calcChecksum();
         this.commandMessage = lm;
         this.totalCommands++;
@@ -1517,6 +1522,9 @@ export class IntelliValve extends EqItem {
                 if (typeof sbody !== 'undefined') {
                     req.write(sbody);
                 }
+                logger.logAPI(`{"dir":"out","proto":"api","requestor":"${opts.hostname || opts.host}","method":"PUT","path":"${opts.path}",${typeof sbody === 'undefined' ? '' : `"body":${sbody},`}"ts":"${Timestamp.toISOLocal(new Date())}"}${os.EOL}`);
+
+                logger.logAPI(`${opts.path} - ${JSON.stringify({ pinId: this.pinId, headerId: this.headerId || 1, delay: 1000, state: true })}`);
                 req.end();
             }
             catch (err) { reject(err); }
@@ -1609,7 +1617,7 @@ export class IntelliValve extends EqItem {
                     }
                 }
             });
-            out.sub = 63;
+            out.sub = 1;
             out.calcChecksum();
             logger.packet(out);
             conn.queueSendMessage(out);
@@ -1775,7 +1783,7 @@ export class IntelliValve extends EqItem {
                 }
             }
         }
-        lm.sub = 63;
+        lm.sub = 1;
         lm.calcChecksum();
         lm.onComplete = (err, msg) => {
             if (err) {

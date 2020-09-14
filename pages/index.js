@@ -209,20 +209,21 @@
             }
             if (typeof data.statusChanges === 'undefined' || data.statusChanges.length === 0) stat.empty();
             else {
+                
                 for (var i = 0; i < data.statusChanges.length; i++) {
-                    var s = stat.find('div.statusChanges[data-index=' + i + ']');
+                    var s = stat.find('div.statusChanges[data-index="' + i + '"]');
                     if (s.length === 0) {
                         // Add in our response object since it doesn't exist.
-                        s = $('<div></div>').appendTo(stat).addClass('status').attr('data-index', i);
-                        var line = $('<div></div>').appendTo(r);
+                        s = $('<div></div>').appendTo(stat).addClass('statusChanges').attr('data-index', i);
+                        var line = $('<div></div>').appendTo(s);
                         $('<label></label>').appendTo(line).text('ts');
                         $('<span></span>').appendTo(line).attr('data-bind', 'ts').attr('data-fmttype', 'datetime').attr('data-fmtmask', 'MM/dd h:mmtt ss.nn');
 
-                        line = $('<div></div>').appendTo(r);
+                        line = $('<div></div>').appendTo(s);
                         $('<label></label>').appendTo(line).text('Prev');
                         $('<span></span>').appendTo(line).attr('data-bind', 'prev');
 
-                        line = $('<div></div>').appendTo(r);
+                        line = $('<div></div>').appendTo(s);
                         $('<label></label>').appendTo(line).text('New');
                         $('<span></span>').appendTo(line).attr('data-bind', 'curr');
                         dataBinder.bind(s, data.statusChanges[i]);
@@ -231,9 +232,9 @@
                         dataBinder.bind(s, data.statusChanges[i]);
                 }
                 // Trim off all the ones that are greater than the number of responses.
-                var rs = stat.find('div.status');
+                var rs = stat.find('div.statusChanges');
                 if (rs.length > data.statusChanges.length) {
-                    for (var k = rs.length; k > data.statusChanges.length; k--) {
+                    for (var k = rs.length; k >= data.statusChanges.length; k--) {
                         $(rs[k]).remove();
                     }
                 }
