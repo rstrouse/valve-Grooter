@@ -244,7 +244,6 @@ export class SendRecieveBuffer {
         }
         if (conn.buffer._outBuffer.length > 0 || typeof conn.buffer._waitingPacket !== 'undefined' || conn.buffer._waitingPacket) {
             // Come back later as we still have items to send.
-            logger.silly('Setting a timer to process packets');
             conn.buffer.procTimer = setTimeout(() => this.processPackets(), 100);
         }
        
