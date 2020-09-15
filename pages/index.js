@@ -64,7 +64,19 @@
         }
     });
     $.widget("pic.valve", {
-        options: { socket: null, suspendBind: false },
+        options: {
+            socket: null, suspendBind: false,
+            method:null,
+            grootMethods: [{ val: 'commandCrunch1', name: 'Command Crunch', desc: 'Crunch all available payloads for all actions.' },
+            { val: 'command247', name: 'Command 247', desc: 'Sequences the 247 1 command.  If the valve locks up it resets the valve using REM.' },
+            { val: 'action247', name: 'Action 247', desc: 'Send all payloads on 247 with the address as the first byte.' },
+            { val: 'action245', name: 'Action 245', desc: 'Send all payloads on action 245.' },
+            { val: 'action245_247', name: 'Action[245,247]', desc: 'Send all payloads on 245 and 247.  The first byte is not relevant so 247 1 can be sent.' },
+            { val: 'flybackStatus', name: 'Flyback Status', desc: 'Feed the status result back to the valve while changing payload bytes.' },
+            { val: 'driveOn80', name: 'Drive on 80', desc: 'Send payloads back on action 80 with the address as the first byte so it does not readdress the valve.' },
+            { val: 'flybackOver80', name: 'Flyback over 80', desc: 'Send an entire payload on action 80 while changing the bytes of the groot.' },
+            { val: 'flyback247Status', name: 'Flyback 247 Status', desc: 'Jams the last 10 bytes from the status return down the throat of the valve while chaining byte patterns.' }]
+        },
         _create: function () {
             var self = this, o = self.options, el = self.element;
             el[0].databind = function (data) { self.databind(data); };
@@ -92,16 +104,9 @@
             line = $('<div></div>').appendTo(pnl);
             $('<div></div>').appendTo(line).pickList({
                 required: true,
-                bindColumn: 0, displayColumn: 0, labelText: 'Method', binding: 'method',
-                columns: [{ binding: 'val', text: 'Method', style: { whiteSpace: 'nowrap' } }, { binding: 'desc', text: 'Description', style: { width: '450px' } }],
-                items: [{ val: 'commandCrunch1', desc: 'Crunch all available payloads for all actions.' },
-                    { val: 'command247', desc: 'Sequences the 247 1 command.  If the valve locks up it resets the valve using REM.' },
-                { val: 'action247', desc: 'Send all payloads on 247 with the address as the first byte.' },
-                { val: 'flybackStatus', desc: 'Feed the status result back to the valve while changing payload bytes.' },
-                { val: 'driveOn80', desc: 'Send payloads back on action 80 with the address as the first byte so it does not readdress the valve.' },
-                { val: 'flybackOver80', desc: 'Send an entire payload on action 80 while changing the bytes of the groot.' },
-                { val: 'flyback247Status', desc: 'Jams the last 10 bytes from the status return down the throat of the valve while chaining byte patterns.' }
-                ], inputAttrs: { style: { width: '14rem', paddingLeft: '10px' } }
+                bindColumn: 0, displayColumn: 1, labelText: 'Method', binding: 'method',
+                columns: [{ binding: 'val', hidden: true, text: 'Method', style: { whiteSpace: 'nowrap' } }, { binding: 'name', ext: 'Method', style: { whiteSpace: 'nowrap' } }, { binding: 'desc', text: 'Description', style: { width: '450px' } }],
+                items: o.grootMethods, inputAttrs: { style: { width: '14rem', paddingLeft: '10px' } }
             }).on('selchanged', function (evt) {
                 if (o.binding) return;
                 o.suspendBind = true;

@@ -163,7 +163,8 @@ export class HttpServer extends ProtoServer {
             logger.info(`New socket client connected ${sock.id} -- ${sock.client.conn.remoteAddress}`);
             this.socketHandler(sock);
             //this.sockServer.emit('controller', state.controllerState);
-            //sock.conn.emit('controller', state.controllerState);
+            setTimeout(() => { eq.emit(); }, 100);
+            
         });
         this.app.use('/socket.io-client', express.static(path.join(process.cwd(), '/node_modules/socket.io-client/dist/'), { maxAge: '60d' }));
     }

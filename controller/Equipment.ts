@@ -115,7 +115,7 @@ class EqItemCollection<T> implements IEqItemCollection {
     public filter(f: (value: any, index?: any, array?: any[]) => []): EqItemCollection<T> {
         return new EqItemCollection<T>(this.data.filter(f), this.name);
     }
-    public toArray() {
+    public toArray():T[] {
         let arr = [];
         if (typeof this.data !== 'undefined') {
             for (let i = 0; i < this.data.length; i++) {
@@ -166,7 +166,9 @@ export class Equipment {
         for (let i = 0; i < this.valves.length; i++) {
             let v = this.valves.getItemByIndex(i);
             v.hasRelayInstalled = undefined;
+            v.waitingForStatus = false;
         }
+        this.valves.setStatus('Initializing... Please Wait!');
         // Wait a second... set up our valves.
         setTimeout(() => { this.valves.getValveKeys() }, 1000);
 
@@ -219,7 +221,16 @@ export class Equipment {
             .then(() => { fs.writeFileSync(eq.cfgPath, JSON.stringify(eq.data, undefined, 2)); })
             .catch(function (err) { if (err) logger.error('Error writing pool config %s %s', err, eq.cfgPath); });
     }
-    public emit() { webApp.emitToClients('valves', this.data); }
+    public emit() {
+        let valves = { lastUpdated: this.data.lastUpdated, startPayload: this.data.startPayload, valves: [] };
+        for (let i = 0; i < this.data.valves.length; i++) {
+            let valve = extend(true, {}, this.data.valves[i]);
+            valve.archive = undefined;
+            valves.valves.push(valve);
+        }
+        //console.log(JSON.stringify(this.data.valves, undefined, 0));
+        webApp.emitToClients('valves', valves);
+    }
     public get startPayload(): number[] { return typeof this.data.startPayload !== 'undefined' ? JSON.parse(this.data.startPayload) : undefined; }
     public set startPayload(val: number[]) { this.data.startPayload = JSON.stringify(val); }
     public get excludedActions(): number[] { return typeof this.data.excludedActions !== 'undefined' ? JSON.parse(this.data.excludedActions) : [1, 80, 240]; }
@@ -306,6 +317,11 @@ export class IntelliValveCollection extends EqItemCollection<IntelliValve> {
             //this.data[i].method = 'commandCrunch'
         }
     }
+    public setStatus(val: string) {
+        let arr = this.toArray();
+        for (let i = 0; i < arr.length; i++)
+            arr[i].status = val;
+    }
     public createItem(data: any): IntelliValve { return new IntelliValve(data); }
     public getValveByKey(key: string, add?: boolean, data?: any): IntelliValve {
         let itm = this.find(elem => elem.key === key && typeof elem.key !== 'undefined');
@@ -325,7 +341,7 @@ export class IntelliValveCollection extends EqItemCollection<IntelliValve> {
         for (let i = 0; i < this.length; i++) {
             let valve = this.getItemByIndex(i);
             if (typeof valve.lastMessage !== 'undefined') {
-                valve.responses.push({
+                valve.responses.unshift({
                     ts: Timestamp.toISOLocal(msg.timestamp),
                     in: msg.toPkt(),
                     out: valve.commandMessage.toPkt()
@@ -345,17 +361,22 @@ export class IntelliValveCollection extends EqItemCollection<IntelliValve> {
     }
     public getValveKeys(): Promise<boolean> {
         return new Promise<boolean>((resolve, reject) => {
+            this.setStatus('Getting Valve Keys...');
+            logger.info('Getting the Valve Keys...');
+            config.enableLogging = true;
             // Sending a 240 with a source if 12 to all destinations should make the valve(s)
             // cough up its Groot.  That is even when the valve is bound.  This sends out a 240
             // to all valves.
             let out = Outbound.create({
-                action: 240, source: 16, dest: 12, payload: [], retries: 5,
-                response: Response.create({ dest: 16, action: 241 }),
+                action: 240, source: 16, dest: 12, payload: [], retries: 3,
+                response: Response.create({ action: 241 }),
                 onComplete: async (err, msg) => {
                     if (err) {
+                        config.enableLogging = false;
                         logger.error(`Error requesting valve addresses.`);
                         for (let i = 0; i < this.length; i++) {
                             let v = this.getItemByIndex(i);
+                            v.status = 'We may already have the valve keys... hold on we need to kick the valve.';
                             if (typeof v.hasRelayInstalled === 'undefined')
                                 v.hasRelayInstalled = await v.maybeJogValve();
                             else if (v.hasRelayInstalled === true)
@@ -372,6 +393,7 @@ export class IntelliValveCollection extends EqItemCollection<IntelliValve> {
                         resolve(false);
                     }
                     else {
+                        eq.valves.setStatus('Acquired Valve Keys');
                         // We should be able to address this pig but it will come in the form of
                         // a 0 on the 241 processed in IntelliValve.ts.
                         resolve(true);
@@ -395,6 +417,8 @@ export class IntelliValve extends EqItem {
     public _statusTimer: NodeJS.Timeout = null;
     public id: number;
     public pollStatus = false;
+    public get waitingForStatus(): boolean { return utils.makeBool(this.data.waitingForStatus); }
+    public set waitingForStatus(val: boolean) { this.data.waitingForStatus = val; }
     public get grooter(): string { return this.data.grooter; }
     public set grooter(val: string) { this.data.grooter = val; }
     public get hasRelayInstalled(): boolean { return this.data.hasRelayInstalled; }
@@ -521,7 +545,9 @@ export class IntelliValve extends EqItem {
         typeof this.data.statusChanges !== 'undefined' ? this.data.statusChanges.length = 0 : this.data.statusChanges = [];
         this.data.uuid = meth['uuid'];
         this.data.responses.push(...meth.responses);
+        if (this.data.responses.length > 0) this.data.responses.sort((a, b) => a.ts === b.ts ? 0 : a.ts > b.ts ? -1 : 1);
         this.data.statusChanges.push(...meth.statusChanges);
+        if (this.data.statusChanges.length > 0) this.data.statusChanges.sort((a, b) => a.ts === b.ts ? 0 : a.ts > b.ts ? -1 : 1);
         this.data.tsLastGroot = meth['tsLastGroot'];
         this.data.tsLastStatus = meth['tsLastStatus'];
         this.data.commandIndex = meth['commandIndex'];
@@ -558,7 +584,7 @@ export class IntelliValve extends EqItem {
             let grooter = grooters.transform(config.grooterId);
             this.grooter = config.grooterId;
             await this.setValveAddress(grooter.address, 12);
-            this.sendNextMessage(grooter.method);
+            //this.sendNextMessage(grooter.method);
         }
         catch (err) { logger.error(err); }
     }
@@ -599,11 +625,19 @@ export class IntelliValve extends EqItem {
                             resolve(true);
                             if (typeof oldAddress === 'undefined') {
                                 logger.info(`Starting ${config.grooterId} ${this.method} Groot Method...Fingers crossed we are Grooting for you!`);
+                                this.status = `Starting ${config.grooterId} ${this.method} Groot Method...Fingers crossed we are Grooting for you!`;
                                 let grooter = grooters.transform(config.grooterId);
                                 // So here we are.  We need to start the processing of messages.
                                 this.sendNextMessage(grooter.method);
                                 if (this.pollStatus) this._statusTimer = setTimeout(() => { this.sendStatusRequest(); }, 2000);
                             }
+                            else if (oldAddress === 12 || oldAddress === 0) {
+                                this.status = `Continuing ${config.grooterId} ${this.method} Groot Method...`;
+                                this.sendNextMessage(this.method);
+                                if (this.pollStatus) this._statusTimer = setTimeout(() => { this.sendStatusRequest(); }, 2000);
+                            }
+                            else
+                                this.status = 'Not Starting goot... you suck!';
                             //this.sendLockRequest();
                             //this.send247Message();
                             // Start up the 241s.  Lets send a 240 just in case something changes and we don't see it.
@@ -624,6 +658,7 @@ export class IntelliValve extends EqItem {
         return new Promise<boolean>((resolve, reject) => {
             // Let's remap the valve address to the incoming value.  It should use the underlying key
             let addr = (typeof oldAddress === 'undefined') ? 12 : oldAddress;
+            this.status = `Resetting Valve Address: ${oldAddress} to ${newAddress}`;
             logger.info(`Resetting Valve Address: ${oldAddress} to ${newAddress}`);
             let out = Outbound.create({
                 action: 80, source: 16, dest: addr, retries: 5,
@@ -631,6 +666,7 @@ export class IntelliValve extends EqItem {
                 onComplete: (err, msg) => {
                     if (err) {
                         logger.error(`Error resetting valve address to ${newAddress} from ${addr}.`);
+                        this.status = `Error resetting valve address to ${newAddress} from ${addr}.`;
                         reject(err);
                     }
                     else {
@@ -650,7 +686,7 @@ export class IntelliValve extends EqItem {
         });
     }
     public addStatusChange(msg: Inbound) {
-        this.statusChanges.push({
+        this.statusChanges.unshift({
             ts: Timestamp.toISOLocal(msg.timestamp),
             curr: msg.toPkt(true),
             prev: typeof this.statusMessage !== 'undefined' ? this.statusMessage.toPkt(true) : ''
@@ -1016,9 +1052,11 @@ export class IntelliValve extends EqItem {
         this.processing = true;
         if (this.method !== method) {
             if (typeof this.method === 'undefined') {
+                this.status = `Initializing Groot Method ${method}. No Previous method specified.`;
                 logger.info(`Initializing Groot Method ${method}. No previous method specified.`);
             }
             else {
+                this.status = `Changing Groot Method from ${this.method} to ${method}.`;
                 logger.info(`Changing Groot Method from ${this.method} to ${method}.`);
                 this.archiveResponses();
                 logger.info(`Archived Groot Method ${this.method}`);
@@ -1028,9 +1066,17 @@ export class IntelliValve extends EqItem {
             case 'command247':
                 this.sequenceSetCommands();
                 break;
+            case 'action245':
+                this.pollStatus = true;
+                this.sendActionMessage(245);
+                break;
             case 'action247':
                 this.send247Message();
                 this.pollStatus = true;
+                break;
+            case 'action245_247':
+                this.pollStatus = true;
+                this.sendActionMessage([245, 247]);
                 break;
             case 'commandCrunch1':
                 this.sendCrunchMessage();
@@ -1117,6 +1163,7 @@ export class IntelliValve extends EqItem {
                 }
             }
         }
+        this.status = 'Flying back over 80...';
         cmd.calcChecksum();
         this.totalCommands++;
         conn.queueSendMessage(cmd);
@@ -1177,6 +1224,7 @@ export class IntelliValve extends EqItem {
                 }
             }
         }
+        this.status = 'Driving on 80...';
         cmd.calcChecksum();
         this.totalCommands++;
         conn.queueSendMessage(cmd);
@@ -1261,6 +1309,7 @@ export class IntelliValve extends EqItem {
                 }
             }
         }
+        this.status = 'We are crunching Captain...';
         if (cmd.action === 247 && cmd.payload.length > 0 && cmd.payload[0] === 1) cmd.action++;
         cmd.calcChecksum();
         this.totalCommands++;
@@ -1285,7 +1334,7 @@ export class IntelliValve extends EqItem {
                 else {
                     eq.emit();
                 }
-                if (this.pollStatus) this._statusTimer = setTimeout(() => { self.sendStatusRequest() }, 5000); // Ask again in 1 second.
+                if (this.pollStatus) this._statusTimer = setTimeout(() => { self.sendStatusRequest() }, 5000); // Ask again in .5 seconds.
                 //this.setValveAddress(111);
             }
         });
@@ -1323,6 +1372,75 @@ export class IntelliValve extends EqItem {
         //logger.info(`${out.toPkt()}`);
         conn.queueSendMessage(out);
     }
+    // This is a generic method that allows the supplied actions to be exercised.
+    public sendActionMessage(actions:number[] | number) {
+        if (this.processing === false) return;
+        if (conn.buffer.outBuffer.length > 0 || this.waitingForStatus) { setTimeout(() => { this.sendActionMessage(actions); }, 20); return; } // Don't do anything we have a full buffer already.  Let the valve catch up.
+        let method = typeof actions === 'number' ? 'action' + actions : 'action' + actions.join('_');
+        if (this.method !== method) {
+            this.restoreResponses(method);
+            this.method = method;
+            this.pollStatus = true;
+            this.sendStatusRequest();
+        }
+        let lm = this.commandMessage;
+        if (typeof lm === 'undefined') {
+            let grooter = grooters.transform(config.grooterId);
+            lm = Outbound.create({
+                action: typeof actions === 'number' ? actions : -1, source: 16, dest: this.address, payload: grooter.blinkyBlue || [0] });
+        }
+        else {
+            let bInc = false;
+            if (typeof actions !== 'number') {
+                if (actions.length > 1) {
+                    let ndx = actions.indexOf(lm.action);
+                    if (ndx === -1) {
+                        lm.action = actions[0];
+                    }
+                    else if (ndx === actions.length - 1) {
+                        lm.action = actions[0];
+                        bInc = true;
+                    }
+                    else lm.action = actions[ndx + 1];
+                }
+                else bInc = true;
+            }
+            else bInc = true;
+            if (bInc) {
+                let ndx = lm.payload.length - 1;
+                while (ndx >= 0) {
+                    let byte = lm.payload[ndx];
+                    if (byte === 255) {
+                        lm.payload[ndx] = 0;
+                        if (ndx === 0) {
+                            lm.appendPayloadByte(0);
+                            break;
+                        }
+                        ndx--;
+                    }
+                    else {
+                        //if (ndx === 0 && byte === 0) byte++; // Skip 1 as this will lock up the valve.
+                        lm.payload[ndx] = byte + 1;
+                        break;
+                    }
+                }
+            }
+        }
+        lm.sub = 1;
+        lm.calcChecksum();
+        if (typeof actions === 'number')
+            this.status = `Feeding the goose on ${actions}.  Let's make some Foie Gras!`;
+        else
+            this.status = `Feeding the goose on ${JSON.stringify(actions, undefined, 0)}.  Let's make some Foie Gras!`;
+        this.commandMessage = lm;
+        this.totalCommands++;
+        conn.queueSendMessage(lm);
+        setTimeout(() => {
+            eq.emit();
+            this.sendActionMessage(actions);
+        }, this.delay);
+    }
+
     public send247Message() {
         if (this.processing === false) return;
         if (conn.buffer.outBuffer.length > 0) { setTimeout(() => { this.send247Message(); }, 20); return; } // Don't do anything we have a full buffer already.  Let the valve catch up.
@@ -1355,6 +1473,7 @@ export class IntelliValve extends EqItem {
         }
         lm.sub = 1;
         lm.calcChecksum();
+        this.status = 'Sending action 247 messages...';
         this.commandMessage = lm;
         this.totalCommands++;
         conn.queueSendMessage(lm);
@@ -1470,6 +1589,7 @@ export class IntelliValve extends EqItem {
                 }
             }
         }
+        this.status = 'Flying back over 247... Man are my arms tired!';
         cmd.calcChecksum();
         this.totalCommands++;
         conn.queueSendMessage(cmd);
@@ -1489,7 +1609,7 @@ export class IntelliValve extends EqItem {
                 opts.path = '/state/jogPin';
                 opts.method = 'PUT';
                 opts.headers = { 'CONTENT-TYPE': 'application/json' };
-                let sbody = JSON.stringify({ pinId: this.pinId, headerId: this.headerId || 1, delay: 1000, state: true });
+                let sbody = JSON.stringify({ pinId: this.pinId, headerId: this.headerId || 1, delay: 1500, state: true });
                 if (typeof sbody !== 'undefined') {
                     if (sbody.charAt(0) === '"' && sbody.charAt(sbody.length - 1) === '"') sbody = sbody.substr(1, sbody.length - 2);
                     opts.headers["CONTENT-LENGTH"] = Buffer.byteLength(sbody || '');
@@ -1550,7 +1670,9 @@ export class IntelliValve extends EqItem {
                 // We first need to jog the valve.
                 logger.info('Command 247 Initialized');
                 this.method = 'command247';
+                this.status = 'Initializing Command 247.  We are entering the twilight zone!';
             }
+
             this.pollStatus = true;
             let b = await this.getStatusMessage();
             let stat = this.statusMessage;
@@ -1656,6 +1778,7 @@ export class IntelliValve extends EqItem {
   
     public getStatusMessage(): Promise<boolean> {
         return new Promise<boolean>((resolve, reject) => {
+            this.waitingForStatus = true;
             // We are sending out a 240 with the valve address.  This should get us a current status.
             let out = Outbound.create({
                 action: 240, source: 15, dest: this.address, payload: [], retries: 2,
@@ -1668,6 +1791,7 @@ export class IntelliValve extends EqItem {
                     else {
                         logger.info('We have successfully executed after the message was sent.')
                         resolve(true);
+                        this.waitingForStatus = false;
                     }
                 }
             });
@@ -1734,14 +1858,17 @@ export class IntelliValve extends EqItem {
                 onComplete: (err, msg) => {
                     if (err) {
                         logger.error(`Error requesting valve status.`);
+                        this.status = 'Cannot acquire the status on the valve'
                         resolve(false);
                     }
                     else {
-                        logger.info('We have successfully executed after the message was sent.')
+                        logger.info('We have successfully executed after the message was sent.');
+                        this.status = 'We have a status after we locked the address.';
                         resolve(true);
                     }
                 }
             });
+            this.status = 'Testing the 247 Status...';
             out.sub = 1;
             out.calcChecksum();
             //logger.info(`${out.toPkt()}`);
@@ -1804,6 +1931,7 @@ export class IntelliValve extends EqItem {
                 this.commandMessage = lm;
                 this.totalCommands++;
                 lm.retries = 1;
+                this.status = 'Grooting into the blinky blue.  Keep an eye on the valve lights!';
                 // Test to see if we can get an address.
                 lm.response = Response.create({ source: this.address, action: 1, payload: [247] }),
                     lm.onComplete = (err) => {

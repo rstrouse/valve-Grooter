@@ -5,7 +5,7 @@ import { config } from '../../config/Config';
 import { logger } from '../../logger/Logger';
 import { eq } from '../Equipment';
 import * as net from 'net';
-import { setTimeout } from 'timers';
+import { setTimeout, clearTimeout } from 'timers';
 import { Message, Outbound, Inbound, Response } from './messages/Messages';
 import { OutboundMessageError } from '../Errors';
 export class Connection {
@@ -244,8 +244,10 @@ export class SendRecieveBuffer {
         }
         if (conn.buffer._outBuffer.length > 0 || typeof conn.buffer._waitingPacket !== 'undefined' || conn.buffer._waitingPacket) {
             // Come back later as we still have items to send.
+            logger.silly('Setting a timer to process packets');
             conn.buffer.procTimer = setTimeout(() => this.processPackets(), 100);
         }
+       
     }
     /*
      * Writing messages on the queue is tricky to harden.  The async nature of the serial port in node doesn't appropriately drain the port after each message
@@ -321,7 +323,11 @@ export class SendRecieveBuffer {
                         if (typeof msg.onComplete === 'function') msg.onComplete(err, undefined);
                     }
                     else if (msg.remainingTries >= 0) {
+                        //logger.silly('Need to come back on the retry');
                         conn.buffer._waitingPacket = msg;
+                        if (conn.buffer.procTimer) clearTimeout(conn.buffer.procTimer);
+                        conn.buffer.procTimer = setTimeout(() => conn.buffer.processPackets(), 500);
+
                     }
                 }
             });

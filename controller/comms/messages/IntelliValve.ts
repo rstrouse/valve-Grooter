@@ -38,12 +38,12 @@ export class IVMessage {
                 valve.totalGroots++;
                 eq.emit();
             }
-            else if (IVMessage.is80Ack(msg)) {
-                //logger.packet(msg);
-                //let valve = eq.valves.getValveByAddress(msg.source);
-                //logger.info(`Got 80 Ack ${msg.toPkt()}`);
-            }
-            else if (IVMessage.isAck(msg, 247)) {
+            //else if (IVMessage.is80Ack(msg)) {
+            //    //logger.packet(msg);
+            //    //let valve = eq.valves.getValveByAddress(msg.source);
+            //    //logger.info(`Got 80 Ack ${msg.toPkt()}`);
+            //}
+            else if (IVMessage.isAck(msg, [80, 247, 245])) {
                 //logger.packet(msg);
 
             }
@@ -110,7 +110,9 @@ export class IVMessage {
     public static is80Ack(msg: Inbound) {
         return IVMessage.isAck(msg, 80);
     }
-    public static isAck(msg: Inbound, action: number) {
-        return msg.action === 1 && msg.payload.length === 1 && msg.payload[0] === action;
+    public static isAck(msg: Inbound, action: number | number[]) {
+        return typeof action === 'number' ?
+            msg.action === 1 && msg.payload.length === 1 && msg.payload[0] === action :
+            msg.action === 1 && msg.payload.length === 1 && action.indexOf(msg.payload[0]) !== -1;
     }
 }
