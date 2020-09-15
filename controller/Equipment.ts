@@ -27,17 +27,17 @@ import { json } from "express";
 //in [[], [255, 0, 255], [165, 1, 16, 1, 1, 1], [247], [1, 176]]
 //out[[], [255, 0, 255], [165, 1, 1, 16, 247, 8], [1, 128, 128, 31, 18, 79, 213, 65], [4, 77]]
 let grooters = {
-    cmc0619: { method: 'commandCrunch1', address:160, command: [1, 0, 0], crunch: [0], flyback: { commandIndex: 0 } },
-    gw8674: { method: 'commandCrunch', address:160, command: [1, 0, 0, 0], crunch: [1, 2, 4], flyback: { commandIndex: 2 } },
-    amigaman: { method: 'commandCrunch1', address:131, command: [1, 0, 0, 0, 0], crunch: [50, 128, 0, 0], flyback: { commandIndex: 4 } },
-    mcqwerty: { method: 'commandCrunch1', address:160, command: [1, 20, 0, 0, 0, 0], crunch: [0, 0, 50, 128, 0, 0], flyback: { commandIndex: 6 } },
-    thumbnut: { method: 'commandCrunch1', address:160, command: [1, 7, 0, 0, 0, 0, 0], crunch: [1, 1, 0, 128, 59, 0, 0, 0, 0], flyback: { commandIndex: 8 } },
-    thumbnut1: { method: 'commandCrunch1', address:160, command: [1, 128, 0, 0, 0, 0, 0, 0], crunch: [1, 1, 7, 43, 59, 0, 0, 0, 0], flyback: { commandIndex: 2 } },
-    thumbnut2: { method: 'commandCrunch1', address: 161, command: [1, 128, 0, 0, 0, 0, 0, 0, 0, 0], crunch: [1, 1, 0, 128, 59, 0, 0, 0, 0], flyback: { commandIndex: 8 } },
-    kenneth: { method: 'commandCrunch1', address: 160, command: [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0], crunch: [1, 2, 1, 64, 128, 205, 3, 3, 0, 0, 0, 0], flyback: { commandIndex: 1 } },
-    kenneth2: { method: 'commandCrunch1', address:161, command: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0], crunch: [1, 2, 1, 64, 128, 205, 3, 3, 0, 0, 0, 0], flyback: { commandIndex: 3 } },
-    rstrouse: { method: 'command247', address: 160, command: [1, 0,], crunch: [1, 2, 4], flyback: { commandIndex: 10 } },
-    tagyoureit: { method: 'command247', address: 160, command: [1, 160, 0], crunch: [128, 128, 31, 18, 95, 182, 191, 0], flyback: { commandIndex: 12 } },
+    cmc0619: { method: 'commandCrunch1', address: 160, command: [1, 0, 0], crunch: [0], flyback: { commandIndex: 0 }, blinkyBlue: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1] },
+    gw8674: { method: 'commandCrunch', address: 160, command: [1, 0, 0, 0], crunch: [1, 2, 4], flyback: { commandIndex: 2 }, blinkyBlue: [255, 128, 1, 1, 128, 128, 0, 0, 0, 0] },
+    amigaman: { method: 'commandCrunch1', address: 131, command: [1, 0, 0, 0, 0], crunch: [50, 128, 0, 0], flyback: { commandIndex: 4 }, blinkyBlue: [1, 2, 1, 1, 24, 48, 0, 0, 0, 0] },
+    mcqwerty: { method: 'commandCrunch1', address: 160, command: [1, 20, 0, 0, 0, 0], crunch: [0, 0, 50, 128, 0, 0], flyback: { commandIndex: 6 }, blinkyBlue: [1, 2, 0, 55, 0, 0, 0, 0, 0, 0] },
+    thumbnut: { method: 'commandCrunch1', address: 160, command: [1, 7, 0, 0, 0, 0, 0], crunch: [1, 1, 0, 128, 59, 0, 0, 0, 0], flyback: { commandIndex: 8 }, blinkyBlue: [255, 255, 0, 0, 0, 128, 0, 0, 0, 0]},
+    thumbnut1: { method: 'commandCrunch1', address: 160, command: [1, 128, 0, 0, 0, 0, 0, 0], crunch: [1, 1, 7, 43, 59, 0, 0, 0, 0], flyback: { commandIndex: 2 }, blinkyBlue: [1, 2, 255, 255, 0, 0, 0, 0, 0, 0] },
+    thumbnut2: { method: 'commandCrunch1', address: 161, command: [1, 128, 0, 0, 0, 0, 0, 0, 0, 0], crunch: [1, 1, 0, 128, 59, 0, 0, 0, 0], flyback: { commandIndex: 8 }, blinkyBlue: [255, 255, 1, 2, 0, 0, 0, 0, 0, 0] },
+    kenneth: { method: 'commandCrunch1', address: 160, command: [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0], crunch: [1, 2, 1, 64, 128, 205, 3, 3, 0, 0, 0, 0], flyback: { commandIndex: 1 }, blinkyBlue: [255, 128, 0, 0, 0, 0, 0, 0, 0, 0] },
+    kenneth2: { method: 'commandCrunch1', address: 161, command: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0], crunch: [1, 2, 1, 64, 128, 205, 3, 3, 0, 0, 0, 0], flyback: { commandIndex: 3 }, blinkyBlue: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+    rstrouse: { method: 'commandCrunch1', address: 160, command: [1, 0,], crunch: [1, 2, 4], flyback: { commandIndex: 10 }, blinkyBlue: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+    tagyoureit: { method: 'command247', address: 160, command: [1, 160, 0], crunch: [128, 128, 31, 18, 95, 182, 191, 0], flyback: { commandIndex: 12 }, blinkyBlue: [1, 2, 255, 255, 48, 91, 32, 1, 0, 64] },
     transform: function (val: string) {
         let grooter = this[val.toLowerCase()] || {
             address:131, method: 'driveOn80', crunch: [0], flyback: { commandIndex:0 }
@@ -1347,7 +1347,7 @@ export class IntelliValve extends EqItem {
                     ndx--;
                 }
                 else {
-                    if (ndx === 0 && byte === 0) byte++; // Skip 1 as this will lock up the valve.
+                    //if (ndx === 0 && byte === 0) byte++; // Skip 1 as this will lock up the valve.
                     lm.payload[ndx] = byte + 1;
                     break;
                 }
@@ -1523,8 +1523,7 @@ export class IntelliValve extends EqItem {
                     req.write(sbody);
                 }
                 logger.logAPI(`{"dir":"out","proto":"api","requestor":"${opts.hostname || opts.host}","method":"PUT","path":"${opts.path}",${typeof sbody === 'undefined' ? '' : `"body":${sbody},`}"ts":"${Timestamp.toISOLocal(new Date())}"}${os.EOL}`);
-
-                logger.logAPI(`${opts.path} - ${JSON.stringify({ pinId: this.pinId, headerId: this.headerId || 1, delay: 1000, state: true })}`);
+                //logger.logAPI(`${opts.path} - ${JSON.stringify({ pinId: this.pinId, headerId: this.headerId || 1, delay: 1000, state: true })}`);
                 req.end();
             }
             catch (err) { reject(err); }
@@ -1543,7 +1542,9 @@ export class IntelliValve extends EqItem {
     }
     public async sequenceSetCommands() {
         try {
+            config.enableLogging = true;
             if (this.method !== 'command247') {
+                logger.logAPI(`{"dir":"out","proto":"api","requestor":"","method":"FUNCTION","path":"sequenceSetCommands()", "ts":"${Timestamp.toISOLocal(new Date())}"}${os.EOL}`);
                 logger.info('Initializing Command 247');
                 this.restoreResponses('command247');
                 // We first need to jog the valve.
@@ -1552,13 +1553,20 @@ export class IntelliValve extends EqItem {
             }
             this.pollStatus = true;
             let b = await this.getStatusMessage();
-            b = await this.setValveSetMode();
-            //await new Promise((resolve, reject) => setTimeout(() => { resolve(); }, 10000));
-            b = await eq.valves.getValveKeys();
-            if (b) {
-                // Reset the valve address.
-                this.setValveAddress(this.address, 12);
+            let stat = this.statusMessage;
+            if (!b || (stat.payload[0] === 1 && stat.payload[1] === 2)) {
+                b = await this.setValveSetMode();
+                if (!b) {
+                    //await new Promise((resolve, reject) => setTimeout(() => { resolve(); }, 10000));
+                    b = await eq.valves.getValveKeys();
+                    if (b) {
+                        // Reset the valve address.
+                        this.setValveAddress(this.address, 12);
+                    }
+                }
             }
+            config.enableLogging = false;
+            setTimeout(() => { this.processBlinkyBlue(); }, this.delay);
             //b = await this.getStatusMessage();
             //if (!b) {
             //    await this.resetValve();
@@ -1570,7 +1578,82 @@ export class IntelliValve extends EqItem {
             //}
         } catch (err) { logger.error(err); }
     }
-   
+    public processBlinkyBlue() {
+        if (this.processing === false) return;
+        let self = this;
+        if (conn.buffer.outBuffer.length > 0 || typeof this.data.statusMessage === 'undefined') { setTimeout(() => { this.processBlinkyBlue(); }, 20); return; } // Don't do anything we have a full buffer already.Let the valve catch up.
+        let cmd = this.commandMessage;
+        if (typeof cmd === 'undefined') {
+            cmd = Outbound.create({ action: 0, source: 16, dest: this.address });
+            let grooter = grooters.transform(config.grooterId);
+            cmd.payload = grooter.blinkyBlue.slice();
+            if (cmd.payload.length === 0) {
+                eq.startPayload = [];
+                logger.info(`Initializing Blinky Blue payload: ${config.grooterId}`);
+                cmd.payload = [0];
+            }
+            this.data.step = 0;
+        }
+        if (cmd.action !== 255) {
+            cmd.action++; // Only need to increment the action since we haven't exhausted these yet.
+            //let excluded = eq.excludedActions;
+            //while (excluded.includes(cmd.action)) { cmd.action++ }; // Skip over the actions that we don't want to look at.  For instance, don't send a 1, 80, or 240.
+        }
+        else {
+            cmd.action = 0;
+            let start = eq.startPayload;
+            //let excluded = eq.excludedActions;
+            //while (excluded.includes(cmd.action)) { cmd.action++ };
+
+            let ndx = cmd.payload.length - 1;
+            let allMax = true;
+            for (let i = 0; i < cmd.payload.length; i++) {
+                let b = cmd.payload[i];
+                if (b !== 255) {
+                    allMax = false;
+                    break;
+                }
+            }
+            if (allMax) {
+                // Reset the prior bytes to 0 and add another byte.
+                for (let i = 0; i < cmd.payload.length; i++) {
+                    if (i < start.length) cmd.payload[i] = start[i];
+                    else cmd.payload[i] = 0;
+                }
+                // Add a zero and keep on chumming.
+                cmd.appendPayloadByte(0);
+            }
+            else {
+                let byte = cmd.payload[ndx];
+                if (byte !== 255) cmd.payload[ndx]++;
+                else {
+                    // This shoud first increment the first byte that is not 255 from the right then
+                    // set all bytes to the right to 0 or default.  Goofy I know but that is the only way to get 
+                    // all potential values.
+                    cmd.payload[ndx];
+                    if (ndx <= start.length) cmd.payload[ndx] = start[ndx];
+                    else cmd.payload[ndx] = 0;
+                    for (let i = ndx - 1; i >= 0; i--) {
+                        if (cmd.payload[i] !== 255) {
+                            cmd.payload[i]++;
+                            for (let k = i + 1; k < cmd.payload.length; k++) {
+                                if (k < start.length) cmd.payload[k] = start[k];
+                                else cmd.payload[k] = 0;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        //if (cmd.action === 247 && cmd.payload.length > 0 && cmd.payload[0] === 1) cmd.action++;
+        cmd.calcChecksum();
+        this.totalCommands++;
+        conn.queueSendMessage(cmd);
+        this.commandMessage = cmd;
+        this._sendTimer = setTimeout(() => { eq.emit(); self.processBlinkyBlue(); }, this.delay);
+    }
+  
     public getStatusMessage(): Promise<boolean> {
         return new Promise<boolean>((resolve, reject) => {
             // We are sending out a 240 with the valve address.  This should get us a current status.
@@ -1608,7 +1691,7 @@ export class IntelliValve extends EqItem {
                     if (err) {
                         logger.error(err);
                         this.status = `Error setting set mode for ${this.address}`;
-                        resolve(false);
+                        resolve(true);
                     }
                     else {
                         this.status = `Valve address locked to ${this.address}`;
@@ -1625,6 +1708,7 @@ export class IntelliValve extends EqItem {
     }
     public async sequence247Command() {
         try {
+            config.enableLogging = true;
             logger.info(`Sequencing 247 command`);
             await this.send247CommandMessage();
             let stat = await this.test247Status();
@@ -1675,7 +1759,7 @@ export class IntelliValve extends EqItem {
                     this.restoreResponses('command247');
                     this.pollStatus = false;
                     // We first need to jog the valve.
-                    if (!await this.jogValve()) {
+                    if (!await this.resetValve()) {
                         reject(new Error('Cannot jog valve command 247 aborted'));
                     }
                     else {

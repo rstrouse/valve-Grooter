@@ -24,11 +24,10 @@ export class IVMessage {
                 // Let's verify the 241 payload.  If it has changed, log it.
                 else if (valve.statusMessage.payload.join(',') !== msg.payload.join(',')) {
                     logger.info('got 241 Change');
-                    logger.packet(msg, true);
+                    if (config.enableLogging === false) logger.packet(msg, true);
                     valve.addStatusChange(msg);
                 }
                 valve.statusMessage = msg;
-                if (valve.method === 'command247') logger.packet(msg);
             }
             else if (IVMessage.isGroot(msg)) {
                 let key = eq.valves.makeKey(msg.payload);

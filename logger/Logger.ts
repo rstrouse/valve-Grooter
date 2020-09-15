@@ -78,6 +78,7 @@ class Logger {
     }
     public packet(msg: Message, blog?: boolean) {
         if (config.enableLogging || blog === true) {
+            //if (config.enableLogging === true) console.log('Logging Enabled');
             // Filter out the messages we do not want.
             var bLog: boolean = true;
             // A random packet may actually find its way into the throws should the bytes get messed up
@@ -104,7 +105,7 @@ class Logger {
             //    }
             //}
             if (bLog) {
-                if (logger.cfg.packet.logToFile) {
+                //if (logger.cfg.packet.logToFile) {
                     logger.pkts.push(msg);
                     if (logger.pkts.length > 5)
                         logger.flushLogs();
@@ -113,7 +114,7 @@ class Logger {
                         if (logger.pktTimer) clearTimeout(logger.pktTimer);
                         logger.pktTimer = setTimeout(logger.flushLogs, 1000);
                     }
-                }
+                //}
                 webApp.emitToChannel('msgLogger', 'logMessage', msg);
             }
         }
