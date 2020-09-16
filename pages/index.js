@@ -95,7 +95,7 @@
             $('<label></label>').appendTo(line).text('Valve Key');
             $('<span></span>').appendTo(line).attr('data-bind', 'key');
             $('<span></span>').appendTo(line).attr('data-bind', 'status');
-            $('<input type="hidden"></input>').appendTo(line).attr('data-bind', 'id').attr('data-fmttype', 'int').attr('data-fmtmask', '#');
+            $('<input type="hidden"></input>').appendTo(line).attr('data-bind', 'id').attr('data-fmttype', 'int').attr('data-fmtmask', '#').attr('data-datatype', 'int');
             line = $('<div></div>').appendTo(pnl);
             $('<label></label>').appendTo(line).text('Address');
             $('<span></span>').appendTo(line).attr('data-bind', 'address').attr('data-fmttype', 'int').attr('data-fmtmask', '#');
@@ -110,7 +110,6 @@
             }).on('selchanged', function (evt) {
                 if (o.binding) return;
                 o.suspendBind = true;
-
                 var valve = dataBinder.fromElement(el);
                 valve.method = evt.newItem.val;
                 $.putLocalService('/processing/grootMethod', { id: valve.id, method: evt.newItem.val }, function (data, status, xhr) {
@@ -157,7 +156,48 @@
             //$('<span></span>').appendTo(line).attr('data-bind', 'lastMessage');
 
             line = $('<div></div>').appendTo(pnl);
-            $('<label></label>').appendTo(line).text('Last Command');
+            $('<a></a>').appendTo(line).attr('href', 'javascript:void(0);').text('Last Command')
+                .on('click', function (evt) {
+                    console.log('Clicked last command');
+                    var valve = dataBinder.fromElement(el);
+                    $.putLocalService('/processing/suspend', { id: valve.id, suspended: true }, 'Suspending Processing...', function (v, status, xhr) {
+                        console.log(v);
+                        var dlg = $.pic.modalDialog.createDialog('dlgLastMessage', {
+                            width: '547px',
+                            height: 'auto',
+                            title: 'Last Message',
+                            position: { my: "center top", at: "center top", of: window },
+                            buttons: [
+                                {
+                                    text: 'Resume', icon: '<i class="fas fa-save"></i>',
+                                    click: function (evt) {
+                                        var pmsg = dataBinder.fromElement(dlg);
+                                        var obj = {
+                                            id: v.id, message: { action: pmsg.action, payload: pmsg.payload.length > 0 ? JSON.parse(`[${pmsg.payload}]`) : undefined }
+                                        };
+                                        console.log(obj);
+                                        $.putLocalService('/processing/resume', obj, 'Resuming Processing...', function (v1, status, xhr) {
+                                            $.pic.modalDialog.closeDialog(dlg);
+
+                                        });
+                                    }
+                                },
+                                {
+                                    text: 'Cancel', icon: '<i class="far fa-window-close"></i>',
+                                    click: function () { $.pic.modalDialog.closeDialog(this); }
+                                }
+                            ]
+                        });
+                        $('<div></div>').appendTo(dlg).text('Enter a new value for the last message in the spaces below.  Then press the Resume button to continue or the cancel button to remain paused.');
+                        $('<hr></hr>').appendTo(dlg);
+                        var line = $('<div></div>').appendTo(dlg);
+                        $('<div></div>').appendTo(line).inputField({ required: true, dataType: 'int', labelText: 'Action', binding: 'action', inputAttrs: { style: { width: '3rem' } }, labelAttrs: { style: { width: '4rem' } } });
+                        line = $('<div></div>').appendTo(dlg);
+                        $('<div></div>').appendTo(line).inputField({ required: true, labelText: 'Payload', binding: 'payload', inputAttrs: { style: { width: '37rem' } }, labelAttrs: { style: { width: '4rem' } } });
+                        var arr = JSON.parse(v.commandMessage);
+                        dataBinder.bind(dlg, { action: arr[2][4], payload: arr[3].join(',') });
+                    });
+                });
             $('<span></span>').appendTo(line).attr('data-bind', 'commandMessage');
 
             //line = $('<div></div>').appendTo(pnl);
@@ -245,6 +285,7 @@
                 }
             }
             o.suspendBind = false;
+            o.valveId = data.id;
             o.binding = false;
         }
     });

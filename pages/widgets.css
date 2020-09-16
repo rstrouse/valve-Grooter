@@ -23,6 +23,7 @@ div.valve {
 div.valve label {
   color: teal; }
 
+div.valvePanel > div a:nth-child(1),
 div.valvePanel > div label:nth-child(1) {
   display: inline-block;
   width: 110px; }

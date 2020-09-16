@@ -21,6 +21,7 @@ import { URL } from "url";
 import { Timestamp } from '../controller/Constants';
 import { eq } from "../controller/Equipment";
 import extend = require("extend");
+import { utils } from "../controller/Constants";
 
 // This class serves data and pages for
 // external interfaces as well as an internal dashboard.
@@ -309,6 +310,21 @@ export class HttpServer extends ProtoServer {
                 }
                 catch (err) { next(err); }
             });
+            this.app.put('/processing/suspend', async (req, res, next) => {
+                try {
+                    let valve = await eq.suspendProcessing(req.body);
+                    return res.status(200).send(valve.get(true));
+                }
+                catch (err) { next(err); }
+            });
+            this.app.put('/processing/resume', async (req, res, next) => {
+                try {
+                    let valve = await eq.resumeProcessing(req.body);
+                    return res.status(200).send(valve.get(true));
+                }
+                catch (err) { next(err); }
+            });
+
             this.isRunning = true;
         }
     }

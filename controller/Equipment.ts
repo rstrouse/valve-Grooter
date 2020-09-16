@@ -5,7 +5,7 @@ import * as util from "util";
 import * as http from "http";
 import * as https from "https";
 import * as os from 'os';
-import { setTimeout } from "timers";
+import { setTimeout, clearTimeout } from "timers";
 import { Timestamp, ControllerType, utils } from "./Constants";
 import { Protocol, Message, Outbound, Inbound, Response } from "./comms/messages/Messages";
 import { conn } from "./comms/Comms";
@@ -184,6 +184,37 @@ export class Equipment {
             }
         }
         return cfg;
+    }
+    public suspendProcessing(data): Promise<IntelliValve> {
+        return new Promise<IntelliValve>((resolve, reject) => {
+            let valve = this.valves.getItemById(parseInt(data.id, 10));
+            if (valve._sendTimer) clearTimeout(valve._sendTimer);
+            valve._sendTimer = null;
+            if (valve._statusTimer) clearTimeout(valve._statusTimer);
+            valve._statusTimer = null;
+            valve.status = 'Processing Suspended...';
+            valve.suspended = true;
+            resolve(valve);
+        });
+    }
+    public resumeProcessing(data): Promise<IntelliValve> {
+        return new Promise<IntelliValve>((resolve, reject) => {
+            let valve = this.valves.getItemById(parseInt(data.id, 10));
+            if (valve._sendTimer) clearTimeout(valve._sendTimer);
+            valve._sendTimer = null;
+            if (valve._statusTimer) clearTimeout(valve._statusTimer);
+            valve._statusTimer = null;
+            valve.suspended = false;
+            if (typeof data.message !== 'undefined') {
+                let msg = data.message;
+                let lm = valve.commandMessage;
+                if (typeof msg.action !== 'undefined') lm.action = parseInt(msg.action, 10);
+                if (typeof msg.payload !== 'undefined' && util.isArray(msg.payload)) lm.payload = msg.payload;
+                valve.commandMessage = lm;
+            }
+            resolve(valve);
+            valve._sendTimer = setTimeout(() => { valve.sendNextMessage(valve.method); }, 500);
+        });
     }
     public async stopAsync() {
         if (this._timerChanges) clearTimeout(this._timerChanges);
@@ -501,7 +532,11 @@ export class IntelliValve extends EqItem {
         let method = groot.method || 'commandCrunch1';
         return new Promise((resolve, reject) => {
             this.processing = false;
-            setTimeout(() => {
+            if (this._sendTimer) {
+                this._sendTimer = null;
+                clearTimeout(this._sendTimer);
+            }
+            this._sendTimer = setTimeout(() => {
                 resolve();
                 this.sendNextMessage(method);
             }, 100);
@@ -558,7 +593,7 @@ export class IntelliValve extends EqItem {
     public set lastVerified(val: Outbound) { this.data.lastVerified = val.toPkt(); }
     public get method(): string { return this.data.method; }
     public set method(val: string) { this.data.method = val; }
-    public get delay(): number { return this.data.delay || 100 }
+    public get delay(): number { return this.data.delay = this.data.delay || 100; }
     public set delay(val: number) { this.data.delay = val }
     public maybeJogValve(): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
@@ -906,7 +941,7 @@ export class IntelliValve extends EqItem {
     //}
     //public sendNextMessage() {
     //    let self = this;
-    //    if (conn.buffer.outBuffer.length > 0) setTimeout(() => { this.sendNextMessage(); }, 20); // Don't do anything we have a full buffer already.  Let the valve catch up.
+    //    if (conn.buffer.outBuffer.length > 0 || this.suspended) setTimeout(() => { this.sendNextMessage(); }, 20); // Don't do anything we have a full buffer already.  Let the valve catch up.
     //    if (this.method === 'status') {
     //        if (typeof this.statusMessage !== 'undefined') {
     //            let cmd = Outbound.create({ action: 80, source: 16, dest: 12 });
@@ -988,7 +1023,13 @@ export class IntelliValve extends EqItem {
         if (this.processing === false) return;
         let self = this;
         // This sends messages related to that 241 return.
-        if (conn.buffer.outBuffer.length > 0 || typeof this.statusMessage === 'undefined') { setTimeout(() => { this.sendFlybackMessage(); }, 20); return; } // Don't do anything we have a full buffer already.  Let the valve catch up.
+        if (this._sendTimer) {
+            this._sendTimer = null;
+            clearTimeout(this._sendTimer);
+        }
+        if (conn.buffer.outBuffer.length > 0 || this.suspended || this.suspended || typeof this.statusMessage === 'undefined') {
+            this._sendTimer = setTimeout(() => { this.sendFlybackMessage(); }, 20); return;
+        } // Don't do anything we have a full buffer already.  Let the valve catch up.
         if (this.method !== 'flybackStatus') {
             this.restoreResponses('flybackStatus');
             this.method = 'flybackStatus';
@@ -1040,6 +1081,7 @@ export class IntelliValve extends EqItem {
                 else cmd.payload[ndx]++;
             }
         }
+        this.status = `Shoving the status payload down the throat of the valve.`
         this._sendTimer = setTimeout(() => { eq.emit(); self.sendFlybackMessage(); }, this.delay);
         cmd.sub = 1;
         cmd.calcChecksum();
@@ -1050,6 +1092,10 @@ export class IntelliValve extends EqItem {
     }
     public sendNextMessage(method: string) {
         this.processing = true;
+        if (this._sendTimer) {
+            this._sendTimer = null;
+            clearTimeout(this._sendTimer);
+        }
         if (this.method !== method) {
             if (typeof this.method === 'undefined') {
                 this.status = `Initializing Groot Method ${method}. No Previous method specified.`;
@@ -1108,7 +1154,13 @@ export class IntelliValve extends EqItem {
     public send80FlybackMessage() {
         if (this.processing === false) return;
         let self = this;
-        if (conn.buffer.outBuffer.length > 0 || typeof this.uuid === 'undefined') { setTimeout(() => { this.send80FlybackMessage(); }, 20); return; } // Don't do anything we have a full buffer already.Let the valve catch up.
+        if (conn.buffer.outBuffer.length > 0 || this.suspended || typeof this.uuid === 'undefined') {
+            if (this._sendTimer) {
+                this._sendTimer = null;
+                clearTimeout(this._sendTimer);
+            }
+            this._sendTimer = setTimeout(() => { this.send80FlybackMessage(); }, 20); return;
+        } // Don't do anything we have a full buffer already.Let the valve catch up.
         if (this.method !== 'flybackOver80') {
             this.restoreResponses('flybackOver80');
             this.method = 'flybackOver80';
@@ -1179,7 +1231,13 @@ export class IntelliValve extends EqItem {
             if (typeof eq.startPayload === 'undefined') eq.startPayload = grooters.transform(config.grooterId).drive80;
         }
         //out.appendPayloadByte(0);
-        if (conn.buffer.outBuffer.length > 0) { setTimeout(() => { this.send80Commands(); }, 20); return; } // Don't do anything we have a full buffer already.  Let the valve catch up.
+        if (conn.buffer.outBuffer.length > 0 || this.suspended) {
+            if (this._sendTimer) {
+                this._sendTimer = null;
+                clearTimeout(this._sendTimer);
+            }
+            this._sendTimer = setTimeout(() => { this.send80Commands(); }, 20); return;
+        } // Don't do anything we have a full buffer already.  Let the valve catch up.
         let cmd = this.commandMessage;
         if (typeof cmd === 'undefined') {
             cmd = Outbound.create({ action: 80, source: 16, dest: this.address, payload: [this.address] });
@@ -1235,6 +1293,10 @@ export class IntelliValve extends EqItem {
     public sendCrunchMessage() {
         if (this.processing === false) return;
         let self = this;
+        if (this._sendTimer) {
+            this._sendTimer = null;
+            clearTimeout(this._sendTimer);
+        }
         if (this.method !== 'commandCrunch1') {
             this.restoreResponses('commandCrunch1');
             this.method = 'commandCrunch1';
@@ -1242,7 +1304,11 @@ export class IntelliValve extends EqItem {
             this.pollStatus = true;
             this.sendStatusRequest();
         }
-        if (conn.buffer.outBuffer.length > 0) { setTimeout(() => { this.sendCrunchMessage(); }, 20); return; } // Don't do anything we have a full buffer already.  Let the valve catch up.
+        if (conn.buffer.outBuffer.length > 0 || this.suspended) {
+            this._sendTimer = setTimeout(() => {
+                this.sendCrunchMessage();
+            }, 20); return;
+        } // Don't do anything we have a full buffer already.  Let the valve catch up.
         // So what this does is rotate through the available actions to get responses.  The starting action in the file will be the one that is used to
         // start all this up.  We will increment each available action for each available payload logging responses along the way.
         let cmd = this.commandMessage;
@@ -1321,6 +1387,7 @@ export class IntelliValve extends EqItem {
         let self = this;
         if (this._statusTimer) clearTimeout(this._statusTimer);
         this._statusTimer = null;
+        if (this.suspended) return;
         // We are sending out a 240 with the valve address.  This should get us a current status.
         let out = Outbound.create({
             action: 240, source: 15, dest: this.address, payload: [], retries: 2,
@@ -1345,10 +1412,12 @@ export class IntelliValve extends EqItem {
     }
     public sendLockRequest(payload: number[] = [1], minLength: number = 0) {
         // We know that 247 payload 1 will lock the valve.
+        this.suspended = true;
         let out = Outbound.create({
             action: 247, source: 16, dest: this.address, payload: payload, retries: 3,
             response: Response.create({ source: this.address, action: 1, payload: [247] }),
             onComplete: (err, msg) => {
+                this.suspended = false;
                 if (err) {
                     logger.error(`Error locking valve to address ${this.address}: ${err}`);
                     this.resetValveAddress(this.address, 12);
@@ -1375,7 +1444,13 @@ export class IntelliValve extends EqItem {
     // This is a generic method that allows the supplied actions to be exercised.
     public sendActionMessage(actions:number[] | number) {
         if (this.processing === false) return;
-        if (conn.buffer.outBuffer.length > 0 || this.waitingForStatus) { setTimeout(() => { this.sendActionMessage(actions); }, 20); return; } // Don't do anything we have a full buffer already.  Let the valve catch up.
+        if (this._sendTimer) {
+            this._sendTimer = null;
+            clearTimeout(this._sendTimer);
+        }
+        if (conn.buffer.outBuffer.length > 0 || this.suspended || this.waitingForStatus) {
+            this._sendTimer = setTimeout(() => { this.sendActionMessage(actions); }, 20); return;
+        } // Don't do anything we have a full buffer already.  Let the valve catch up.
         let method = typeof actions === 'number' ? 'action' + actions : 'action' + actions.join('_');
         if (this.method !== method) {
             this.restoreResponses(method);
@@ -1440,10 +1515,15 @@ export class IntelliValve extends EqItem {
             this.sendActionMessage(actions);
         }, this.delay);
     }
-
     public send247Message() {
         if (this.processing === false) return;
-        if (conn.buffer.outBuffer.length > 0) { setTimeout(() => { this.send247Message(); }, 20); return; } // Don't do anything we have a full buffer already.  Let the valve catch up.
+        if (this._sendTimer) {
+            this._sendTimer = null;
+            clearTimeout(this._sendTimer);
+        }
+        if (conn.buffer.outBuffer.length > 0 || this.suspended) {
+            this._sendTimer = setTimeout(() => { this.send247Message(); }, 20); return;
+        } // Don't do anything we have a full buffer already.  Let the valve catch up.
         if (this.method !== 'action247') {
             this.restoreResponses('action247');
             this.method = 'action247';
@@ -1485,7 +1565,13 @@ export class IntelliValve extends EqItem {
     public send247StatusMessage() {
         if (this.processing === false) return;
         let self = this;
-        if (conn.buffer.outBuffer.length > 0 || typeof this.data.statusMessage === 'undefined') { setTimeout(() => { this.send247StatusMessage(); }, 20); return; } // Don't do anything we have a full buffer already.Let the valve catch up.
+        if (this._sendTimer) {
+            this._sendTimer = null;
+            clearTimeout(this._sendTimer);
+        }
+        if (conn.buffer.outBuffer.length > 0 || this.suspended || typeof this.data.statusMessage === 'undefined') {
+            this._sendTimer = setTimeout(() => { this.send247StatusMessage(); }, 20); return;
+        } // Don't do anything we have a full buffer already.Let the valve catch up.
         if (this.method !== 'flyback247Status') {
             this.restoreResponses('flyback247Status');
             console.log('Restored flyback247Status');
@@ -1652,16 +1738,27 @@ export class IntelliValve extends EqItem {
     public resetValve(): Promise<boolean> {
         return new Promise<boolean>(async (resolve, reject) => {
             try {
+                this.suspended = true;
                 logger.info('Jogging valve');
                 await this.jogValve();
                 await this.resetValveAddress(this.address, 12);
                 resolve(true);
+                this.suspended = false;
             }
-            catch (err) { reject(err); }
+            catch (err) { reject(err); this.suspended = false; }
         });
     }
     public async sequenceSetCommands() {
         try {
+            this.suspended = true;
+            if (this._sendTimer) {
+                clearTimeout(this._sendTimer);
+                this._sendTimer = null;
+            }
+            if (this._statusTimer) {
+                clearTimeout(this._statusTimer);
+                this._statusTimer = null;
+            }
             config.enableLogging = true;
             if (this.method !== 'command247') {
                 logger.logAPI(`{"dir":"out","proto":"api","requestor":"","method":"FUNCTION","path":"sequenceSetCommands()", "ts":"${Timestamp.toISOLocal(new Date())}"}${os.EOL}`);
@@ -1672,7 +1769,6 @@ export class IntelliValve extends EqItem {
                 this.method = 'command247';
                 this.status = 'Initializing Command 247.  We are entering the twilight zone!';
             }
-
             this.pollStatus = true;
             let b = await this.getStatusMessage();
             let stat = this.statusMessage;
@@ -1699,11 +1795,20 @@ export class IntelliValve extends EqItem {
 
             //}
         } catch (err) { logger.error(err); }
+        finally {
+            this.suspended = false;
+        }
     }
     public processBlinkyBlue() {
         if (this.processing === false) return;
         let self = this;
-        if (conn.buffer.outBuffer.length > 0 || typeof this.data.statusMessage === 'undefined') { setTimeout(() => { this.processBlinkyBlue(); }, 20); return; } // Don't do anything we have a full buffer already.Let the valve catch up.
+        if (this._sendTimer) {
+            this._sendTimer = null;
+            clearTimeout(this._sendTimer);
+        }
+        if (conn.buffer.outBuffer.length > 0 || this.suspended || typeof this.data.statusMessage === 'undefined') {
+            this._sendTimer = setTimeout(() => { this.processBlinkyBlue(); }, 20); return;
+        } // Don't do anything we have a full buffer already.Let the valve catch up.
         let cmd = this.commandMessage;
         if (typeof cmd === 'undefined') {
             cmd = Outbound.create({ action: 0, source: 16, dest: this.address });
@@ -1770,12 +1875,12 @@ export class IntelliValve extends EqItem {
         }
         //if (cmd.action === 247 && cmd.payload.length > 0 && cmd.payload[0] === 1) cmd.action++;
         cmd.calcChecksum();
+        this.status = 'Processing the mysterious realm of the Blinky Blue';
         this.totalCommands++;
         conn.queueSendMessage(cmd);
         this.commandMessage = cmd;
         this._sendTimer = setTimeout(() => { eq.emit(); self.processBlinkyBlue(); }, this.delay);
     }
-  
     public getStatusMessage(): Promise<boolean> {
         return new Promise<boolean>((resolve, reject) => {
             this.waitingForStatus = true;
@@ -1832,6 +1937,7 @@ export class IntelliValve extends EqItem {
     }
     public async sequence247Command() {
         try {
+            this.suspended = true;
             config.enableLogging = true;
             logger.info(`Sequencing 247 command`);
             await this.send247CommandMessage();
@@ -1847,6 +1953,7 @@ export class IntelliValve extends EqItem {
             setTimeout(() => this.sequence247Command(), this.delay);
             //logger.error(err);
         }
+        finally { this.suspended = false; }
     }
     public async test247Status(): Promise<boolean> {
         return new Promise<boolean>((resolve, reject) => {
@@ -1879,6 +1986,10 @@ export class IntelliValve extends EqItem {
     public async send247CommandMessage(): Promise<Outbound> {
         return new Promise<Outbound>(async (resolve, reject) => {
             try {
+                if (this._sendTimer) {
+                    clearTimeout(this._sendTimer);
+                    this._sendTimer = null;
+                }
                 let self = this;
                 if (this.processing === false) return;
                 if (this.method !== 'command247') {
