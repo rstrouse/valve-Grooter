@@ -1035,6 +1035,7 @@ export class IntelliValve extends EqItem {
             this.method = 'flybackStatus';
         }
         let cmd = this.commandMessage;
+        cmd.dest = this.address;
         if (typeof cmd === 'undefined') {
             let stat = this.statusMessage;
             this.method = 'flybackStatus';
@@ -1168,6 +1169,7 @@ export class IntelliValve extends EqItem {
         }
         //out.appendPayloadByte(0);
         let cmd = this.commandMessage;
+        cmd.dest = this.address;
         if (typeof cmd === 'undefined') {
             if (typeof this.uuid === 'undefined') { eq.emit(); setTimeout(() => { this.send80FlybackMessage(); }, 20); return; }
             cmd = Outbound.create({ action: 80, source: 16, dest: this.address, payload: [this.address] });
@@ -1239,6 +1241,7 @@ export class IntelliValve extends EqItem {
             this._sendTimer = setTimeout(() => { this.send80Commands(); }, 20); return;
         } // Don't do anything we have a full buffer already.  Let the valve catch up.
         let cmd = this.commandMessage;
+        cmd.dest = this.address;
         if (typeof cmd === 'undefined') {
             cmd = Outbound.create({ action: 80, source: 16, dest: this.address, payload: [this.address] });
             let grooter = grooters.transform(config.grooterId);
@@ -1312,6 +1315,7 @@ export class IntelliValve extends EqItem {
         // So what this does is rotate through the available actions to get responses.  The starting action in the file will be the one that is used to
         // start all this up.  We will increment each available action for each available payload logging responses along the way.
         let cmd = this.commandMessage;
+        cmd.dest = this.address;
         if (typeof cmd === 'undefined') {
             cmd = Outbound.create({ action: 0, source: 16, dest: this.address });
             //logger.info('First command');
@@ -1459,6 +1463,8 @@ export class IntelliValve extends EqItem {
             this.sendStatusRequest();
         }
         let lm = this.commandMessage;
+        lm.dest = this.address;
+
         if (typeof lm === 'undefined') {
             let grooter = grooters.transform(config.grooterId);
             lm = Outbound.create({
@@ -1531,6 +1537,8 @@ export class IntelliValve extends EqItem {
             this.sendStatusRequest();
         }
         let lm = this.commandMessage;
+        lm.dest = this.address;
+
         if (typeof lm === 'undefined') lm = Outbound.create({ action: 247, source: 16, dest: this.address, payload: [0] });
         else {
             let ndx = lm.payload.length - 1;
@@ -1695,7 +1703,7 @@ export class IntelliValve extends EqItem {
                 opts.path = '/state/jogPin';
                 opts.method = 'PUT';
                 opts.headers = { 'CONTENT-TYPE': 'application/json' };
-                let sbody = JSON.stringify({ pinId: this.pinId, headerId: this.headerId || 1, delay: 1500, state: true });
+                let sbody = JSON.stringify({ pinId: this.pinId, headerId: this.headerId || 1, delay: 2000, state: true });
                 if (typeof sbody !== 'undefined') {
                     if (sbody.charAt(0) === '"' && sbody.charAt(sbody.length - 1) === '"') sbody = sbody.substr(1, sbody.length - 2);
                     opts.headers["CONTENT-LENGTH"] = Buffer.byteLength(sbody || '');
