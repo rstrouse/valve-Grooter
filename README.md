@@ -1,6 +1,11 @@
-﻿# Valve Grooter
+# WARNING: This may make your valve Inaccessible
+ This software communicates with IntelliValve using brute force methods.  There have been instances where grooting on the valve either overstresses the internal flash memory of the valve or puts the valve into a communication state that disables the button control panel on the valve.  Either way we have some valves that will no longer respond to the buttons on the front after grooting with the 245 and 247 command structures.  This could endanger the operation of your valve so only proceed with this if you are not afraid to sacrafice your IntelliValve!
+ 
+# Valve Grooter
  This is an application to send messages to IntelliValve in the hope that it will respond with some message other than "I am Groot."  Whenever plugged into an RS485 port IntelliValve will emit a message with the following format.  Each of the segments below represent the message emitted by the valve.  The first array is a preamble that is always 255, 0, 255 decimal.  This is followed by a header that is always constant [<controller byte><channel><destination><source><action><length>].  The next array is the payload where the X's represent a unique identifier.  All valves witnessed in the wild contain a unique set of bytes for the valve.  The final two bytes are simply a checksum that is calculated for the message.
  ```[][255,0,255][165,1,16,12,82,8][0,128,XXX,XXX,XXX,XXX,XXX,XXX][NN,NN]```
+ 
+ 
  
  ## Things we know about Groot
  At this point this is the only means of communication that the valve has.  Despite the traffic on the RS485 bus all we can get the valve to respond with is "I am Groot."  This message is consistent regardless of the mode that the valve is in.  The XXX bytes on the payload described above appear to be some sort of unique identifier for the valve.  Valves manufactured around the same time appear to have some level of sequential numbering in the lower order bytes.
